@@ -18,6 +18,7 @@ import type { DataRow } from "@/lib/types"
 
 interface DataCardsProps {
   data: DataRow[]
+  apiTotal?: number
 }
 
 interface AnswerData {
@@ -220,7 +221,7 @@ function SubField({ label, value }: { label: string; value: string }) {
 
 const PAGE_SIZE = 4
 
-export function DataCards({ data }: DataCardsProps) {
+export function DataCards({ data, apiTotal }: DataCardsProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -275,7 +276,7 @@ export function DataCards({ data }: DataCardsProps) {
         <div className="text-sm text-muted-foreground">
           Showing <span className="font-medium text-foreground">{filteredData.length}</span>
           {" / "}
-          <span className="font-medium text-foreground">{data.length}</span> records
+          <span className="font-medium text-foreground">{apiTotal ?? data.length}</span> records
         </div>
         {filteredData.length > 0 && (
           <Button variant="outline" size="sm" onClick={handleDownloadAll} className="gap-2">
@@ -436,9 +437,28 @@ export function DataCards({ data }: DataCardsProps) {
 
                     {/* Summary Content */}
                     <FieldRow icon={FileText} label="Summary Content">
-                      <p className="text-sm text-foreground leading-relaxed break-words" dir="auto">
-                        {a.summaryContent}
-                      </p>
+                      <div className="flex flex-col gap-1 text-sm leading-relaxed break-words" dir="auto">
+                        {a.summaryContent === "-" ? (
+                          <span className="text-foreground">-</span>
+                        ) : (
+                          a.summaryContent.split("\n").map((line, i) => {
+                            const heading = line.match(/^###\s+(.+)/)
+                            if (heading) {
+                              return <p key={i} className="font-semibold text-foreground mt-1">{heading[1]}</p>
+                            }
+                            const bullet = line.match(/^\s*-\s+(.+)/)
+                            if (bullet) {
+                              return (
+                                <p key={i} className="text-muted-foreground pl-3 before:content-['•'] before:mr-1.5 before:text-primary">
+                                  {bullet[1]}
+                                </p>
+                              )
+                            }
+                            if (line.trim() === "") return <div key={i} className="h-1" />
+                            return <p key={i} className="text-foreground">{line}</p>
+                          })
+                        )}
+                      </div>
                     </FieldRow>
 
                   </div>

@@ -25,8 +25,17 @@ interface SettingsDialogProps {
 export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
   const [open, setOpen] = useState(false)
   const [localConfig, setLocalConfig] = useState<ApiConfig>(config)
+  const [errors, setErrors] = useState<{ robotKey?: boolean; robotToken?: boolean }>({})
 
   const handleSave = () => {
+    const newErrors: { robotKey?: boolean; robotToken?: boolean } = {}
+    if (!localConfig.robotKey.trim()) newErrors.robotKey = true
+    if (!localConfig.robotToken.trim()) newErrors.robotToken = true
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors)
+      return
+    }
+    setErrors({})
     onSave(localConfig)
     setOpen(false)
   }
@@ -35,6 +44,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
     setOpen(isOpen)
     if (isOpen) {
       setLocalConfig(config)
+      setErrors({})
     }
   }
 
@@ -62,27 +72,49 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
         </DialogHeader>
         <div className="mt-4">
           <FieldGroup>
-            <Field>
-              <FieldLabel className="text-sm font-medium text-foreground">Robot Key</FieldLabel>
+            <Field data-invalid={errors.robotKey || undefined}>
+              <FieldLabel className="text-sm font-medium text-foreground">
+                Robot Key <span className="text-destructive">*</span>
+              </FieldLabel>
               <Input
                 value={localConfig.robotKey}
-                onChange={(e) =>
+                onChange={(e) => {
                   setLocalConfig({ ...localConfig, robotKey: e.target.value })
-                }
-                placeholder="Enter cybertron-robot-key"
-                className="mt-1.5 border-border/50 bg-secondary/50 focus:border-primary focus:ring-primary"
+                  if (errors.robotKey) setErrors((prev) => ({ ...prev, robotKey: false }))
+                }}
+                placeholder="Enter Robot Key"
+                aria-invalid={errors.robotKey || undefined}
+                className={`mt-1.5 bg-secondary/50 focus:border-primary focus:ring-primary ${
+                  errors.robotKey
+                    ? "border-destructive ring-1 ring-destructive"
+                    : "border-border/50"
+                }`}
               />
+              {errors.robotKey && (
+                <p className="mt-1 text-xs text-destructive">Robot Key is required</p>
+              )}
             </Field>
-            <Field>
-              <FieldLabel className="text-sm font-medium text-foreground">Robot Token</FieldLabel>
+            <Field data-invalid={errors.robotToken || undefined}>
+              <FieldLabel className="text-sm font-medium text-foreground">
+                Robot Token <span className="text-destructive">*</span>
+              </FieldLabel>
               <Input
                 value={localConfig.robotToken}
-                onChange={(e) =>
+                onChange={(e) => {
                   setLocalConfig({ ...localConfig, robotToken: e.target.value })
-                }
-                placeholder="Enter cybertron-robot-token"
-                className="mt-1.5 border-border/50 bg-secondary/50 focus:border-primary focus:ring-primary"
+                  if (errors.robotToken) setErrors((prev) => ({ ...prev, robotToken: false }))
+                }}
+                placeholder="Enter Robot Token"
+                aria-invalid={errors.robotToken || undefined}
+                className={`mt-1.5 bg-secondary/50 focus:border-primary focus:ring-primary ${
+                  errors.robotToken
+                    ? "border-destructive ring-1 ring-destructive"
+                    : "border-border/50"
+                }`}
               />
+              {errors.robotToken && (
+                <p className="mt-1 text-xs text-destructive">Robot Token is required</p>
+              )}
             </Field>
           </FieldGroup>
 

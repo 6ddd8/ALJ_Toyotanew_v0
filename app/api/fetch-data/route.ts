@@ -155,88 +155,245 @@ function parseAudioInfo(audio: unknown): { url: string; fileName: string } | nul
   return { url: urlMatch[1], fileName }
 }
 
+// Object fields that should be extracted as nested objects (not plain strings)
+const OBJECT_ANSWER_FIELDS: Record<string, string[]> = {
+  gradeSelection: ["value", "note"],
+  colorPreference: ["first", "second", "third"],
+  purchaseType: ["value", "note"],
+}
+
 // Lenient extractor used as a last resort when strict JSON.parse fails.
-// Some answers contain UNESCAPED double quotes inside string values
-// (e.g. ... "سمة" ...), which breaks any JSON parser. For each known field
-// we locate `"key":"` and then read forward until we find the value's real
-// closing quote: an unescaped `"` that is immediately followed (ignoring
-// whitespace) by a `,` or `}`. Inner unescaped quotes are tolerated because
-// they are not followed by those structural characters.
 function extractFieldsLeniently(input: string): Record<string, unknown> | null {
   const result: Record<string, unknown> = {}
   let foundAny = false
 
-  for (const key of KNOWN_ANSWER_FIELDS) {
+  // Extract a plain string value for "key": "..."
+  const extractStringValue = (src: string, key: string): string | null => {
     const keyPattern = new RegExp(`"${key}"\\s*:\\s*"`)
-    const match = input.match(keyPattern)
-    if (!match || match.index === undefined) continue
+    const match = src.match(keyPattern)
+    if (!match || match.index === undefined) return null
 
     const valueStart = match.index + match[0].length
     let i = valueStart
     let value = ""
 
-    while (i < input.length) {
-      const char = input[i]
-
-      // Preserve escape sequences verbatim so decodeDialogue can handle them
-      if (char === "\\" && i + 1 < input.length) {
-        value += char + input[i + 1]
+    while (i < src.length) {
+      const char = src[i]
+      if (char === "\\" && i + 1 < src.length) {
+        value += char + src[i + 1]
         i += 2
         continue
       }
-
       if (char === '"') {
-        // Look ahead past whitespace to decide if this quote closes the value
         let j = i + 1
-        while (j < input.length && /\s/.test(input[j])) j++
-        const next = input[j]
-        if (next === "," || next === "}" || next === undefined) {
-          break // real closing quote
-        }
-        // Otherwise it's an inner unescaped quote: keep it as part of the value
+        while (j < src.length && /\s/.test(src[j])) j++
+        const next = src[j]
+        if (next === "," || next === "}" || next === undefined) break
         value += char
         i++
         continue
       }
-
       value += char
       i++
     }
+    return decodeDialogue(value)
+  }
 
-    result[key] = decodeDialogue(value)
-    foundAny = true
+  // Extract the raw substring for an object value: "key": { ... }
+  const extractObjectBlock = (src: string, key: string): string | null => {
+    const keyPattern = new RegExp(`"${key}"\\s*:\\s*\\{`)
+    const match = src.match(keyPattern)
+    if (!match || match.index === undefined) return null
+
+    const start = match.index + match[0].length - 1 // points to '{'
+    let depth = 0
+    let i = start
+    while (i < src.length) {
+      if (src[i] === "{") depth++
+      else if (src[i] === "}") {
+        depth--
+        if (depth === 0) return src.slice(start, i + 1)
+      }
+      i++
+    }
+    return null
+  }
+
+  for (const key of KNOWN_ANSWER_FIELDS) {
+    if (key in OBJECT_ANSWER_FIELDS) {
+      // Try to extract nested object
+      const block = extractObjectBlock(input, key)
+      if (block) {
+        const subKeys = OBJECT_ANSWER_FIELDS[key]
+        const obj: Record<string, string> = {}
+        for (const subKey of subKeys) {
+          obj[subKey] = extractStringValue(block, subKey) ?? "-"
+        }
+        result[key] = obj
+        foundAny = true
+      }
+    } else {
+      const value = extractStringValue(input, key)
+      if (value !== null) {
+        result[key] = value
+        foundAny = true
+      }
+    }
   }
 
   return foundAny ? result : null
 }
 
-function parseAnswer(answer: string): Record<string, unknown> | null {
-  try {
-    // First attempt: try parsing the sanitized payload directly
-    let parsed = JSON.parse(sanitizeJsonControlChars(answer))
+// Replace literal (unescaped) control characters inside JSON string values
+// by iterating character-by-character. This is more robust than a regex-based
+// approach for long values with Markdown content (###, -, newlines, etc.).
+function escapeControlCharsInStrings(input: string): string {
+  let result = ""
+  let inString = false
+  let escaped = false
 
-    // If it's an array, get the first element (e.g., ["{ ... }"])
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      parsed = parsed[0]
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i]
+    const code = input.charCodeAt(i)
+
+    if (escaped) {
+      result += char
+      escaped = false
+      continue
     }
 
-    // If the result is still a string, it may be double-encoded JSON
-    // e.g., "{\"phoneNumber\":\"123\"}" or with escaped newlines
-    if (typeof parsed === "string") {
-      parsed = JSON.parse(sanitizeJsonControlChars(parsed))
+    if (char === "\\") {
+      result += char
+      escaped = true
+      continue
     }
 
-    // Final check: ensure it's a valid object
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
+    if (char === '"') {
+      inString = !inString
+      result += char
+      continue
     }
-  } catch {
-    // Strict parsing failed (often due to unescaped quotes inside values).
-    // Fall through to the lenient field-by-field extractor below.
+
+    if (inString && code <= 0x1f) {
+      if (char === "\n") result += "\\n"
+      else if (char === "\r") result += "\\r"
+      else if (char === "\t") result += "\\t"
+      else result += "\\u" + code.toString(16).padStart(4, "0")
+      continue
+    }
+
+    result += char
   }
 
-  // Fallback: tolerant extraction of the known fields. This also handles the
-  // double-encoded case where the payload is wrapped in array/string syntax.
+  return result
+}
+
+// Convert Python dict-style strings to valid JSON.
+// Handles:
+//   - Single-quoted keys/values: 'key': 'value'
+//   - Double-quoted values (e.g. summaryContent): "### Markdown\n..."
+//   - Mixed quoting in the same dict
+//   - True/False/None -> true/false/null
+//   - Escaped single quotes \' inside single-quoted strings
+//   - Literal control characters (\n \r \t) inside any string value
+function pythonDictToJson(s: string): string {
+  let result = ""
+  let i = 0
+  while (i < s.length) {
+    const ch = s[i]
+
+    // Replace unquoted Python booleans and None
+    if (s.startsWith("True", i) && !/\w/.test(s[i + 4] ?? "")) { result += "true"; i += 4; continue }
+    if (s.startsWith("False", i) && !/\w/.test(s[i + 5] ?? "")) { result += "false"; i += 5; continue }
+    if (s.startsWith("None", i) && !/\w/.test(s[i + 4] ?? "")) { result += "null"; i += 4; continue }
+
+    if (ch === "'") {
+      // Single-quoted string: convert to double-quoted JSON string
+      let str = ""
+      i++ // skip opening '
+      while (i < s.length) {
+        if (s[i] === "\\" && s[i + 1] === "'") { str += "'"; i += 2; continue }        // \' -> '
+        if (s[i] === "\\" && s[i + 1] === "\\") { str += "\\\\"; i += 2; continue }    // \\ -> \\
+        if (s[i] === "\\") { str += s[i] + (s[i + 1] ?? ""); i += 2; continue }        // other escapes
+        if (s[i] === "'") { i++; break }                                                // closing '
+        if (s[i] === '"') { str += '\\"'; i++; continue }                              // " -> \"
+        if (s[i] === "\n") { str += "\\n"; i++; continue }                             // literal newline
+        if (s[i] === "\r") { str += "\\r"; i++; continue }
+        if (s[i] === "\t") { str += "\\t"; i++; continue }
+        str += s[i++]
+      }
+      result += '"' + str + '"'
+      continue
+    }
+
+    if (ch === '"') {
+      // Double-quoted string: already uses JSON delimiters, but may contain
+      // literal control characters — pass through while fixing those.
+      let str = ""
+      i++ // skip opening "
+      while (i < s.length) {
+        if (s[i] === "\\" && s[i + 1] !== undefined) {
+          // Keep existing escape sequences as-is
+          str += s[i] + s[i + 1]
+          i += 2
+          continue
+        }
+        if (s[i] === '"') { i++; break }                  // closing "
+        if (s[i] === "\n") { str += "\\n"; i++; continue } // literal newline
+        if (s[i] === "\r") { str += "\\r"; i++; continue }
+        if (s[i] === "\t") { str += "\\t"; i++; continue }
+        str += s[i++]
+      }
+      result += '"' + str + '"'
+      continue
+    }
+
+    result += ch
+    i++
+  }
+  return result
+}
+
+function parseAnswer(answer: string): Record<string, unknown> | null {
+  const tryParse = (s: string): Record<string, unknown> | null => {
+    // Attempt 1: escape control chars (handles standard JSON with newlines in summaryContent)
+    try {
+      let parsed = JSON.parse(escapeControlCharsInStrings(s))
+      if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
+      if (typeof parsed === "string") parsed = JSON.parse(escapeControlCharsInStrings(parsed))
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch { /* fall through */ }
+
+    // Attempt 2: convert Python dict single-quotes to JSON double-quotes, then escape control chars
+    try {
+      const converted = escapeControlCharsInStrings(pythonDictToJson(s))
+      let parsed = JSON.parse(converted)
+      if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
+      if (typeof parsed === "string") parsed = JSON.parse(escapeControlCharsInStrings(pythonDictToJson(parsed)))
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch { /* fall through */ }
+
+    // Attempt 3: legacy sanitize path
+    try {
+      let parsed = JSON.parse(sanitizeJsonControlChars(s))
+      if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
+      if (typeof parsed === "string") parsed = JSON.parse(sanitizeJsonControlChars(parsed))
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch { /* fall through */ }
+
+    return null
+  }
+
+  const result = tryParse(answer)
+  if (result) return result
+
+  // Fallback: tolerant extraction of the known fields.
   return extractFieldsLeniently(answer)
 }
 
@@ -248,13 +405,17 @@ interface FetchOptions {
   pagesize: number
   startTime?: string
   endTime?: string
-  // Prefix to keep row ids unique across the two data sources
   idPrefix: string
 }
 
+interface FetchResult {
+  rows: DataRow[]
+  apiTotal: number
+}
+
 // Fetch a set of records via API 1 (segment list) + API 2 (segment detail)
-// for a given key/token (and optional time range). Returns parsed DataRows.
-async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
+// for a given key/token (and optional time range). Returns parsed DataRows and the API 1 total.
+async function fetchRecords(options: FetchOptions): Promise<FetchResult> {
   const { robotKey, robotToken, username, page, pagesize, startTime, endTime, idPrefix } = options
 
   const headers = {
@@ -264,20 +425,26 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
   }
 
   // API 1: Get segment list
+  const api1Body = {
+    username,
+    filter_mode: 0,
+    filter_user_code: "",
+    create_start_time: startTime || "",
+    create_end_time: endTime || "",
+    page,
+    pagesize,
+    message_source: "openapi-ws",
+  }
+  console.log("[v0] API 1 URL:", "https://agents.dyna.ai/openapi/v1/conversation/segment/get_list/")
+  console.log("[v0] API 1 Headers:", { "cybertron-robot-key": robotKey, "cybertron-robot-token": robotToken })
+  console.log("[v0] API 1 Body:", JSON.stringify(api1Body, null, 2))
+
   const segmentListResponse = await fetch(
     "https://agents.dyna.ai/openapi/v1/conversation/segment/get_list/",
     {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        username,
-        filter_mode: 0,
-        filter_user_code: "",
-        create_start_time: startTime || "",
-        create_end_time: endTime || "",
-        page,
-        pagesize,
-      }),
+      body: JSON.stringify(api1Body),
     }
   )
 
@@ -286,31 +453,33 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
   }
 
   const segmentData = await segmentListResponse.json()
+  console.log("[v0] API 1 Response:", JSON.stringify(segmentData, null, 2))
 
   if (segmentData.code !== "000000") {
     throw new Error(segmentData.message || "API 1 returned an error")
   }
 
+  const apiTotal: number = segmentData.data?.total ?? 0
   const segments: SegmentItem[] = segmentData.data?.list || []
-
-  // Filter only openapi-ws segments
-  const openapiWsSegments = segments.filter(
-    (seg) => seg.message_source === "openapi-ws"
-  )
+  console.log("[v0] API 1 total segments returned:", segments.length, "/ API total:", apiTotal)
 
   // API 2: Get details for each segment
-  const detailPromises = openapiWsSegments.map(async (segment) => {
+  const detailPromises = segments.map(async (segment) => {
+    const api2Body = {
+      username,
+      segment_code: segment.segment_code,
+      page: 1,
+      pagesize: 100,
+    }
+    console.log("[v0] API 2 URL:", "https://agents.dyna.ai/openapi/v1/conversation/segment/detail_list/")
+    console.log("[v0] API 2 Body:", JSON.stringify(api2Body, null, 2))
+
     const detailResponse = await fetch(
       "https://agents.dyna.ai/openapi/v1/conversation/segment/detail_list/",
       {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          username,
-          segment_code: segment.segment_code,
-          page: 1,
-          pagesize: 100,
-        }),
+        body: JSON.stringify(api2Body),
       }
     )
 
@@ -319,49 +488,43 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
     }
 
     const detailData = await detailResponse.json()
+    console.log("[v0] API 2 Response (segment:", segment.segment_code, "):", JSON.stringify(detailData, null, 2))
 
     if (detailData.code !== "000000") {
       return []
     }
 
     const details: DetailItem[] = detailData.data?.list || []
+    console.log("[v0] API 2 segment:", segment.segment_code, "details count:", details.length)
 
-    // Filter only openapi-ws messages with valid JSON answers
-    return details
-      .filter((detail) => detail.message_source === "openapi-ws")
-      .map((detail, index) => {
-        const parsed = parseAnswer(detail.answer)
+    // Map all detail items — never discard a row even if JSON parsing fails
+    return details.map((detail, index) => {
+      const parsed = parseAnswer(detail.answer) ?? {}
 
-        // Skip rows where answer is not valid JSON
-        if (!parsed) {
-          return null
-        }
+      // Prefer historyDialogue from the parsed answer; fall back to question.
+      const answerDialogue =
+        typeof parsed.historyDialogue === "string"
+          ? decodeDialogue(parsed.historyDialogue)
+          : ""
 
-        // Prefer historyDialogue from the parsed answer; fall back to question.
-        const answerDialogue =
-          typeof parsed.historyDialogue === "string"
-            ? decodeDialogue(parsed.historyDialogue)
-            : ""
+      // Parse the optional recording info from the "audio" field
+      const audioInfo = parseAudioInfo(parsed.audio)
 
-        // Parse the optional recording info from the "audio" field
-        const audioInfo = parseAudioInfo(parsed.audio)
+      const row: DataRow = {
+        id: `${idPrefix}-${segment.segment_code}-${index}`,
+        createTime: detail.create_time || segment.create_time,
+        rawData: parsed,
+        historyDialogue: answerDialogue || parseHistoryDialogue(detail.question),
+        audioUrl: audioInfo?.url,
+        audioFileName: audioInfo?.fileName,
+      }
 
-        const row: DataRow = {
-          id: `${idPrefix}-${segment.segment_code}-${index}`,
-          createTime: detail.create_time,
-          rawData: parsed,
-          historyDialogue: answerDialogue || parseHistoryDialogue(detail.question),
-          audioUrl: audioInfo?.url,
-          audioFileName: audioInfo?.fileName,
-        }
-
-        return row
-      })
-      .filter((row): row is DataRow => row !== null)
+      return row
+    })
   })
 
   const allDetails = await Promise.all(detailPromises)
-  return allDetails.flat()
+  return { rows: allDetails.flat(), apiTotal }
 }
 
 export async function POST(request: NextRequest) {
@@ -378,7 +541,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch records using the user-configured credentials and time range
-    const configuredRecords = await fetchRecords({
+    const { rows: configuredRecords, apiTotal } = await fetchRecords({
       robotKey,
       robotToken,
       username: effectiveUsername,
@@ -389,7 +552,7 @@ export async function POST(request: NextRequest) {
       idPrefix: "config",
     }).catch((err) => {
       console.error("Error fetching configured records:", err)
-      return [] as DataRow[]
+      return { rows: [] as DataRow[], apiTotal: 0 }
     })
 
     // Deduplicate by record content (phone + time + dialogue)
@@ -412,7 +575,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: deduped,
-      total: deduped.length,
+      total: apiTotal,
     })
   } catch (error) {
     console.error("Error fetching data:", error)
