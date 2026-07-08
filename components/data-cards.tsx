@@ -1,7 +1,11 @@
 "use client"
 
 import { useState, useMemo, useCallback } from "react"
-import { Search, Calendar, X, Download, Phone, FileText, CreditCard, CalendarClock, MessageSquare, ChevronDown, Headphones } from "lucide-react"
+import {
+  Search, Calendar, X, Download, Phone, MessageSquare,
+  ChevronDown, Headphones, Car, CreditCard, Clock,
+  ShoppingCart, Palette, TrendingUp, CheckCircle, FileText, Tag, Star
+} from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -14,47 +18,105 @@ interface DataCardsProps {
   data: DataRow[]
 }
 
-// The 4 fields we display
 interface AnswerData {
   phoneNumber: string
-  DelayReason: string
-  WillingToPay: string
-  PromisedDate: string
+  vehicleWeb: string
+  gradeWeb: string
+  paymentTypeWeb: string
+  callAnswered: string
+  ifGuestBusySuitableCallbackTime: string
+  modelSelection: string
+  gradeSelection: { value: string; note: string }
+  colorPreference: { first: string; second: string; third: string }
+  purchaseType: { value: string; note: string }
+  budgetIfCash: string
+  financialEntityIfFinance: string
+  purchaseTimeline: string
+  confirmToCreateOrder: string
+  accessories: string[]
+  postCallLeadClassification: string
+  followUpRequired: string
+  summaryContent: string
 }
 
-// Field labels in English
-const FIELD_LABELS: Record<keyof AnswerData, string> = {
-  phoneNumber: "Phone Number",
-  DelayReason: "Delay Reason",
-  WillingToPay: "Willing to Pay",
-  PromisedDate: "Promised Date",
+function str(val: unknown): string {
+  if (val === null || val === undefined) return "-"
+  if (typeof val === "string") return val.trim() || "-"
+  return String(val)
 }
 
-// Extract AnswerData from rawData
 function extractAnswerData(rawData: Record<string, unknown>): AnswerData {
+  const raw = rawData as Record<string, unknown>
+
+  // gradeSelection
+  let gradeSelection = { value: "-", note: "-" }
+  if (raw.gradeSelection && typeof raw.gradeSelection === "object" && !Array.isArray(raw.gradeSelection)) {
+    const gs = raw.gradeSelection as Record<string, unknown>
+    gradeSelection = { value: str(gs.value), note: str(gs.note) }
+  } else if (typeof raw.gradeSelection === "string") {
+    gradeSelection = { value: raw.gradeSelection || "-", note: "-" }
+  }
+
+  // colorPreference
+  let colorPreference = { first: "-", second: "-", third: "-" }
+  if (raw.colorPreference && typeof raw.colorPreference === "object" && !Array.isArray(raw.colorPreference)) {
+    const cp = raw.colorPreference as Record<string, unknown>
+    colorPreference = { first: str(cp.first), second: str(cp.second), third: str(cp.third) }
+  }
+
+  // purchaseType
+  let purchaseType = { value: "-", note: "-" }
+  if (raw.purchaseType && typeof raw.purchaseType === "object" && !Array.isArray(raw.purchaseType)) {
+    const pt = raw.purchaseType as Record<string, unknown>
+    purchaseType = { value: str(pt.value), note: str(pt.note) }
+  } else if (typeof raw.purchaseType === "string") {
+    purchaseType = { value: raw.purchaseType || "-", note: "-" }
+  }
+
+  // accessories
+  let accessories: string[] = []
+  if (Array.isArray(raw.accessories)) {
+    accessories = (raw.accessories as unknown[]).map((a) => str(a)).filter((a) => a !== "-")
+  } else if (typeof raw.accessories === "string" && raw.accessories.trim()) {
+    accessories = [raw.accessories]
+  }
+
   return {
-    phoneNumber: String(rawData.phoneNumber || "-"),
-    DelayReason: String(rawData.DelayReason || "-"),
-    WillingToPay: String(rawData.WillingToPay || "-"),
-    PromisedDate: String(rawData.PromisedDate || "null") === "null" ? "-" : String(rawData.PromisedDate),
+    phoneNumber: str(raw.phoneNumber),
+    vehicleWeb: str(raw.vehicleWeb),
+    gradeWeb: str(raw.gradeWeb),
+    paymentTypeWeb: str(raw.paymentTypeWeb),
+    callAnswered: str(raw.callAnswered),
+    ifGuestBusySuitableCallbackTime: str(raw.ifGuestBusySuitableCallbackTime),
+    modelSelection: str(raw.modelSelection),
+    gradeSelection,
+    colorPreference,
+    purchaseType,
+    budgetIfCash: str(raw.budgetIfCash),
+    financialEntityIfFinance: str(raw.financialEntityIfFinance),
+    purchaseTimeline: str(raw.purchaseTimeline),
+    confirmToCreateOrder: str(raw.confirmToCreateOrder),
+    accessories,
+    postCallLeadClassification: str(raw.postCallLeadClassification),
+    followUpRequired: str(raw.followUpRequired),
+    summaryContent: str(raw.summaryContent),
   }
 }
 
-// Download the conversation recording via the server-side proxy route.
-// We fetch the file as a Blob (same-origin within the preview iframe, which
-// preserves auth/session) and download from a blob URL. Navigating directly to
-// the API route via an anchor href would escape the sandboxed iframe and hit
-// the protected deployment, showing an "Unauthorized" page instead.
+function getBadgeStyle(value: string) {
+  const v = value.toLowerCase()
+  if (["yes", "y", "نعم"].includes(v)) return "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+  if (["no", "n", "لا"].includes(v)) return "bg-rose-500/10 text-rose-400 border-rose-500/30"
+  return "bg-amber-500/10 text-amber-400 border-amber-500/30"
+}
+
 async function downloadRecording(row: DataRow) {
   if (!row.audioUrl) return
   const fileName = row.audioFileName || "recording.mp3"
   const params = new URLSearchParams({ url: row.audioUrl, fileName })
-
   try {
     const response = await fetch(`/api/download-audio?${params.toString()}`)
-    if (!response.ok) {
-      throw new Error(`Download failed with status ${response.status}`)
-    }
+    if (!response.ok) throw new Error(`Download failed with status ${response.status}`)
     const blob = await response.blob()
     const blobUrl = URL.createObjectURL(blob)
     const link = document.createElement("a")
@@ -70,58 +132,88 @@ async function downloadRecording(row: DataRow) {
   }
 }
 
-// Download single card as Excel
-function downloadSingleCard(row: DataRow) {  const answerData = extractAnswerData(row.rawData)
-  const headers = ["Created Time", ...Object.values(FIELD_LABELS)]
-  const values = [row.createTime, answerData.phoneNumber, answerData.DelayReason, answerData.WillingToPay, answerData.PromisedDate]
-  
-  const sheetData = [headers, values]
-  
+function flattenForExcel(row: DataRow): Record<string, string> {
+  const a = extractAnswerData(row.rawData)
+  return {
+    "Created Time": row.createTime,
+    "Phone Number": a.phoneNumber,
+    "Vehicle Web": a.vehicleWeb,
+    "Grade Web": a.gradeWeb,
+    "Payment Type Web": a.paymentTypeWeb,
+    "Call Answered": a.callAnswered,
+    "If Guest Busy Suitable Callback Time": a.ifGuestBusySuitableCallbackTime,
+    "Model Selection": a.modelSelection,
+    "Grade Selection Value": a.gradeSelection.value,
+    "Grade Selection Note": a.gradeSelection.note,
+    "Color Preference 1st": a.colorPreference.first,
+    "Color Preference 2nd": a.colorPreference.second,
+    "Color Preference 3rd": a.colorPreference.third,
+    "Purchase Type Value": a.purchaseType.value,
+    "Purchase Type Note": a.purchaseType.note,
+    "Budget If Cash": a.budgetIfCash,
+    "Financial Entity If Finance": a.financialEntityIfFinance,
+    "Purchase Timeline": a.purchaseTimeline,
+    "Confirm To Create Order": a.confirmToCreateOrder,
+    "Accessories": a.accessories.join(", "),
+    "Post Call Lead Classification": a.postCallLeadClassification,
+    "Follow-up Required": a.followUpRequired,
+    "Summary Content": a.summaryContent,
+  }
+}
+
+function downloadSingleCard(row: DataRow) {
+  const flat = flattenForExcel(row)
+  const sheetData = [Object.keys(flat), Object.values(flat)]
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(sheetData)
   XLSX.utils.book_append_sheet(wb, ws, "Record")
-  
-  const filename = answerData.phoneNumber !== "-" ? `record_${answerData.phoneNumber}.xlsx` : `record_${row.id}.xlsx`
+  const filename = flat["Phone Number"] !== "-"
+    ? `record_${flat["Phone Number"]}.xlsx`
+    : `record_${row.id}.xlsx`
   XLSX.writeFile(wb, filename)
 }
 
-// Download all cards as Excel
 function downloadAllCards(data: DataRow[]) {
   if (data.length === 0) return
-  
-  const headers = ["Created Time", ...Object.values(FIELD_LABELS)]
-  const sheetData = [headers]
-  
-  for (const row of data) {
-    const answerData = extractAnswerData(row.rawData)
-    sheetData.push([
-      row.createTime,
-      answerData.phoneNumber,
-      answerData.DelayReason,
-      answerData.WillingToPay,
-      answerData.PromisedDate,
-    ])
-  }
-  
+  const rows = data.map(flattenForExcel)
+  const headers = Object.keys(rows[0])
+  const sheetData = [headers, ...rows.map((r) => Object.values(r))]
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet(sheetData)
   XLSX.utils.book_append_sheet(wb, ws, "All Records")
-  
   const now = new Date()
   const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}${String(now.getDate()).padStart(2, "0")}`
   XLSX.writeFile(wb, `all_records_${dateStr}.xlsx`)
 }
 
-// Get badge style for WillingToPay field
-function getWillingToPayStyle(value: string) {
-  const lowerVal = value.toLowerCase()
-  if (lowerVal === "是" || lowerVal === "yes" || lowerVal === "y" || lowerVal === "نعم") {
-    return "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
-  }
-  if (lowerVal === "否" || lowerVal === "no" || lowerVal === "n" || lowerVal === "لا") {
-    return "bg-rose-500/10 text-rose-400 border-rose-500/30"
-  }
-  return "bg-amber-500/10 text-amber-400 border-amber-500/30"
+// Reusable field row component
+function FieldRow({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: React.ElementType
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="flex items-center gap-1.5">
+        <Icon className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</span>
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function SubField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="ml-5 flex flex-col gap-0.5">
+      <span className="text-[9px] uppercase tracking-wider text-muted-foreground/70">{label}</span>
+      <span className="text-sm text-foreground">{value}</span>
+    </div>
+  )
 }
 
 export function DataCards({ data }: DataCardsProps) {
@@ -136,8 +228,8 @@ export function DataCards({ data }: DataCardsProps) {
     if (!searchQuery.trim()) return data
     const query = searchQuery.toLowerCase()
     return data.filter((row) => {
-      const answerData = extractAnswerData(row.rawData)
-      return answerData.phoneNumber.toLowerCase().includes(query)
+      const a = extractAnswerData(row.rawData)
+      return a.phoneNumber.toLowerCase().includes(query)
     })
   }, [data, searchQuery])
 
@@ -166,19 +258,15 @@ export function DataCards({ data }: DataCardsProps) {
         )}
       </div>
 
-      {/* Results count with download button */}
+      {/* Results count + download */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          Showing <span className="font-medium text-foreground">{filteredData.length}</span> / {" "}
+          Showing <span className="font-medium text-foreground">{filteredData.length}</span>
+          {" / "}
           <span className="font-medium text-foreground">{data.length}</span> records
         </div>
         {filteredData.length > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDownloadAll}
-            className="gap-2"
-          >
+          <Button variant="outline" size="sm" onClick={handleDownloadAll} className="gap-2">
             <Download className="h-4 w-4" />
             Download All
           </Button>
@@ -193,13 +281,13 @@ export function DataCards({ data }: DataCardsProps) {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredData.map((row) => {
-            const answerData = extractAnswerData(row.rawData)
+            const a = extractAnswerData(row.rawData)
             const isExpanded = !!expandedCards[row.id]
 
             return (
               <Card key={row.id} className="relative border-border/50 bg-card transition-shadow hover:shadow-md">
                 <CardContent className="p-4">
-                  {/* Header - Time with Download Button */}
+                  {/* Header */}
                   <div className="mb-3 flex items-center justify-between border-b border-border/50 pb-3">
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -227,7 +315,7 @@ export function DataCards({ data }: DataCardsProps) {
                     </div>
                   </div>
 
-                  {/* Conversation History - collapsible, collapsed by default */}
+                  {/* Conversation History - collapsible */}
                   <div className="mb-3 rounded-lg border border-border/50">
                     <button
                       onClick={() => toggleExpanded(row.id)}
@@ -239,9 +327,7 @@ export function DataCards({ data }: DataCardsProps) {
                         <span className="text-xs font-medium text-foreground">Conversation History</span>
                       </span>
                       <ChevronDown
-                        className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${
-                          isExpanded ? "rotate-180" : ""
-                        }`}
+                        className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
                       />
                     </button>
                     {isExpanded && (
@@ -251,61 +337,121 @@ export function DataCards({ data }: DataCardsProps) {
                     )}
                   </div>
 
-                  {/* 4 Fields */}
+                  {/* Fields */}
                   <div className="grid gap-3">
+
                     {/* Phone Number */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {FIELD_LABELS.phoneNumber}
-                        </span>
-                      </div>
-                      <span className="font-mono text-sm text-foreground">{answerData.phoneNumber}</span>
-                    </div>
+                    <FieldRow icon={Phone} label="Phone Number">
+                      <span className="font-mono text-sm text-foreground">{a.phoneNumber}</span>
+                    </FieldRow>
 
-                    {/* Delay Reason */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <FileText className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {FIELD_LABELS.DelayReason}
-                        </span>
-                      </div>
-                      <p className="text-sm text-foreground leading-relaxed break-words" dir="auto">
-                        {answerData.DelayReason}
-                      </p>
-                    </div>
+                    {/* Vehicle Web */}
+                    <FieldRow icon={Car} label="Vehicle Web">
+                      <span className="text-sm text-foreground">{a.vehicleWeb}</span>
+                    </FieldRow>
 
-                    {/* Willing To Pay */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {FIELD_LABELS.WillingToPay}
-                        </span>
-                      </div>
-                      <Badge variant="outline" className={`w-fit ${getWillingToPayStyle(answerData.WillingToPay)}`}>
-                        {answerData.WillingToPay}
+                    {/* Grade Web */}
+                    <FieldRow icon={Star} label="Grade Web">
+                      <span className="text-sm text-foreground">{a.gradeWeb}</span>
+                    </FieldRow>
+
+                    {/* Payment Type Web */}
+                    <FieldRow icon={CreditCard} label="Payment Type Web">
+                      <span className="text-sm text-foreground">{a.paymentTypeWeb}</span>
+                    </FieldRow>
+
+                    {/* Call Answered */}
+                    <FieldRow icon={CheckCircle} label="Call Answered">
+                      <Badge variant="outline" className={`w-fit ${getBadgeStyle(a.callAnswered)}`}>
+                        {a.callAnswered}
                       </Badge>
-                    </div>
+                    </FieldRow>
 
-                    {/* Promised Date */}
-                    <div className="flex flex-col gap-1">
-                      <div className="flex items-center gap-1.5">
-                        <CalendarClock className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">
-                          {FIELD_LABELS.PromisedDate}
-                        </span>
-                      </div>
-                      <span className="text-sm text-foreground">
-                        {answerData.PromisedDate === "-" ? (
-                          <span className="text-muted-foreground/50">-</span>
-                        ) : (
-                          answerData.PromisedDate
-                        )}
-                      </span>
-                    </div>
+                    {/* If Guest Busy */}
+                    <FieldRow icon={Clock} label="If Guest Busy Suitable Callback Time">
+                      <span className="text-sm text-foreground">{a.ifGuestBusySuitableCallbackTime}</span>
+                    </FieldRow>
+
+                    {/* Model Selection */}
+                    <FieldRow icon={Car} label="Model Selection">
+                      <span className="text-sm text-foreground">{a.modelSelection}</span>
+                    </FieldRow>
+
+                    {/* Grade Selection */}
+                    <FieldRow icon={Tag} label="Grade Selection">
+                      <SubField label="Value" value={a.gradeSelection.value} />
+                      <SubField label="Note" value={a.gradeSelection.note} />
+                    </FieldRow>
+
+                    {/* Color Preference */}
+                    <FieldRow icon={Palette} label="Color Preference">
+                      <SubField label="1st" value={a.colorPreference.first} />
+                      <SubField label="2nd" value={a.colorPreference.second} />
+                      <SubField label="3rd" value={a.colorPreference.third} />
+                    </FieldRow>
+
+                    {/* Purchase Type */}
+                    <FieldRow icon={ShoppingCart} label="Purchase Type">
+                      <SubField label="Value" value={a.purchaseType.value} />
+                      <SubField label="Note" value={a.purchaseType.note} />
+                    </FieldRow>
+
+                    {/* Budget If Cash */}
+                    <FieldRow icon={CreditCard} label="Budget If Cash">
+                      <span className="text-sm text-foreground">{a.budgetIfCash}</span>
+                    </FieldRow>
+
+                    {/* Financial Entity If Finance */}
+                    <FieldRow icon={TrendingUp} label="Financial Entity If Finance">
+                      <span className="text-sm text-foreground">{a.financialEntityIfFinance}</span>
+                    </FieldRow>
+
+                    {/* Purchase Timeline */}
+                    <FieldRow icon={Clock} label="Purchase Timeline">
+                      <span className="text-sm text-foreground">{a.purchaseTimeline}</span>
+                    </FieldRow>
+
+                    {/* Confirm To Create Order */}
+                    <FieldRow icon={CheckCircle} label="Confirm To Create Order">
+                      <Badge variant="outline" className={`w-fit ${getBadgeStyle(a.confirmToCreateOrder)}`}>
+                        {a.confirmToCreateOrder}
+                      </Badge>
+                    </FieldRow>
+
+                    {/* Accessories */}
+                    <FieldRow icon={ShoppingCart} label="Accessories">
+                      {a.accessories.length === 0 ? (
+                        <span className="text-sm text-foreground">-</span>
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {a.accessories.map((acc, i) => (
+                            <Badge key={i} variant="secondary" className="text-xs">
+                              {acc}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </FieldRow>
+
+                    {/* Post Call Lead Classification */}
+                    <FieldRow icon={TrendingUp} label="Post Call Lead Classification">
+                      <span className="text-sm text-foreground">{a.postCallLeadClassification}</span>
+                    </FieldRow>
+
+                    {/* Follow-up Required */}
+                    <FieldRow icon={Calendar} label="Follow-up Required">
+                      <Badge variant="outline" className={`w-fit ${getBadgeStyle(a.followUpRequired)}`}>
+                        {a.followUpRequired}
+                      </Badge>
+                    </FieldRow>
+
+                    {/* Summary Content */}
+                    <FieldRow icon={FileText} label="Summary Content">
+                      <p className="text-sm text-foreground leading-relaxed break-words" dir="auto">
+                        {a.summaryContent}
+                      </p>
+                    </FieldRow>
+
                   </div>
                 </CardContent>
               </Card>

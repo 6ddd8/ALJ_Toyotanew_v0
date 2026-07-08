@@ -100,34 +100,41 @@ export default function DashboardPage() {
   // Calculate stats based on the new data format
   const stats = useMemo(() => {
     const total = data.length
-    let willingToPay = 0
-    let notWillingToPay = 0
-    let hasPromisedDate = 0
+    let answeredCalls = 0
+    let hotLeads = 0
+    let followUpRequired = 0
 
-    // Positive responses: English (yes, y) and Arabic (نعم)
     const positiveResponses = ["yes", "y", "نعم"]
-    // Negative responses: English (no, n) and Arabic (لا)
-    const negativeResponses = ["no", "n", "لا"]
 
     data.forEach((row) => {
-      const raw = row.rawData as Record<string, string | undefined>
-      
-      // Check WillingToPay - handle both English and Arabic, case-insensitive
-      const willingToPayValue = raw.WillingToPay?.trim().toLowerCase()
-      if (willingToPayValue && positiveResponses.includes(willingToPayValue)) {
-        willingToPay++
-      } else if (willingToPayValue && negativeResponses.includes(willingToPayValue)) {
-        notWillingToPay++
+      const raw = row.rawData as Record<string, unknown>
+
+      // Answered Calls: callAnswered = yes/y
+      const callAnswered = typeof raw.callAnswered === "string"
+        ? raw.callAnswered.trim().toLowerCase()
+        : ""
+      if (positiveResponses.includes(callAnswered)) {
+        answeredCalls++
       }
-      
-      // Check PromisedDate
-      const promisedDate = raw.PromisedDate?.trim()
-      if (promisedDate && promisedDate.toLowerCase() !== "null" && promisedDate !== "-" && promisedDate !== "") {
-        hasPromisedDate++
+
+      // Hot Leads: postCallLeadClassification has a non-empty value
+      const classification = typeof raw.postCallLeadClassification === "string"
+        ? raw.postCallLeadClassification.trim()
+        : ""
+      if (classification && classification !== "-") {
+        hotLeads++
+      }
+
+      // Follow-up Required: followUpRequired = yes/y
+      const followUp = typeof raw.followUpRequired === "string"
+        ? raw.followUpRequired.trim().toLowerCase()
+        : ""
+      if (positiveResponses.includes(followUp)) {
+        followUpRequired++
       }
     })
 
-    return { totalRecords: total, willingToPay, notWillingToPay, hasPromisedDate }
+    return { totalRecords: total, answeredCalls, hotLeads, followUpRequired }
   }, [data])
 
   return (
@@ -214,7 +221,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground">Answered Calls</p>
-                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.willingToPay}</p>
+                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.answeredCalls}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.7_0.18_150/0.1)]">
                       <CreditCard className="h-5 w-5 text-[oklch(0.7_0.18_150)]" />
@@ -227,7 +234,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground">Hot Leads</p>
-                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.notWillingToPay}</p>
+                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.hotLeads}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.55_0.22_25/0.1)]">
                       <CreditCard className="h-5 w-5 text-[oklch(0.65_0.22_25)]" />
@@ -240,7 +247,7 @@ export default function DashboardPage() {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-medium text-muted-foreground">Follow-up Required</p>
-                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.hasPromisedDate}</p>
+                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.followUpRequired}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.7_0.15_230/0.1)]">
                       <CalendarCheck className="h-5 w-5 text-[oklch(0.7_0.15_230)]" />
