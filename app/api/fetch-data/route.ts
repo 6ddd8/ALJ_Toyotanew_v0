@@ -361,7 +361,7 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { robotKey, robotToken, username, page = 1, pagesize = 100 } = await request.json()
+    const { robotKey, robotToken, username, page = 1, pagesize = 100, startTime, endTime } = await request.json()
 
     const effectiveUsername = username || "william.pang@dyna.ai"
 
@@ -390,6 +390,8 @@ export async function POST(request: NextRequest) {
             username: effectiveUsername,
             page,
             pagesize,
+            startTime: startTime || undefined,
+            endTime: endTime || undefined,
             idPrefix: "config",
           }).catch((err) => {
             console.error("Error fetching configured records:", err)

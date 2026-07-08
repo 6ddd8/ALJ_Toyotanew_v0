@@ -74,6 +74,8 @@ export default function DashboardPage() {
           robotKey: config.robotKey,
           robotToken: config.robotToken,
           username: DEFAULT_USERNAME,
+          startTime: config.startTime || "",
+          endTime: config.endTime || "",
         }),
       })
 

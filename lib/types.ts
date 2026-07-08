@@ -12,11 +12,15 @@ export interface DataRow {
 export interface ApiConfig {
   robotKey: string
   robotToken: string
+  startTime: string
+  endTime: string
 }
 
 export const DEFAULT_CONFIG: ApiConfig = {
   robotKey: "0t0Ghhpnf37TvG6X6P4krQQlP24%3D",
   robotToken: "MTc4MDg4NDMzMjI0NApBSUhSa3NER0NEekFhVkd2dmNiaGQrRmYveHc9",
+  startTime: "",
+  endTime: "",
 }
 
 export const DEFAULT_USERNAME = "william.pang@dyna.ai"
