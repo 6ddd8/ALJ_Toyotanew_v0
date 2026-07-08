@@ -1,11 +1,12 @@
 "use client"
 
-import { useState, useMemo, useCallback } from "react"
+import { useState, useMemo, useCallback, useEffect } from "react"
 
 import {
   Search, Calendar, X, Download, Phone,
   Headphones, Car, CreditCard, Clock,
-  ShoppingCart, Palette, TrendingUp, CheckCircle, FileText, Tag, Star
+  ShoppingCart, Palette, TrendingUp, CheckCircle, FileText, Tag, Star,
+  ChevronLeft, ChevronRight
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -217,8 +218,11 @@ function SubField({ label, value }: { label: string; value: string }) {
   )
 }
 
+const PAGE_SIZE = 4
+
 export function DataCards({ data }: DataCardsProps) {
   const [searchQuery, setSearchQuery] = useState("")
+  const [currentPage, setCurrentPage] = useState(1)
 
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return data
@@ -228,6 +232,18 @@ export function DataCards({ data }: DataCardsProps) {
       return a.phoneNumber.toLowerCase().includes(query)
     })
   }, [data, searchQuery])
+
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / PAGE_SIZE))
+
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, data])
+
+  const pagedData = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE
+    return filteredData.slice(start, start + PAGE_SIZE)
+  }, [filteredData, currentPage])
 
   const handleDownloadAll = useCallback(() => {
     downloadAllCards(filteredData)
@@ -276,7 +292,7 @@ export function DataCards({ data }: DataCardsProps) {
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredData.map((row) => {
+          {pagedData.map((row) => {
             const a = extractAnswerData(row.rawData)
 
             return (
@@ -430,6 +446,45 @@ export function DataCards({ data }: DataCardsProps) {
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2 pt-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage === 1}
+            aria-label="Previous page"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <Button
+              key={page}
+              variant={page === currentPage ? "default" : "outline"}
+              size="sm"
+              onClick={() => setCurrentPage(page)}
+              aria-label={`Page ${page}`}
+              aria-current={page === currentPage ? "page" : undefined}
+              className="min-w-[36px]"
+            >
+              {page}
+            </Button>
+          ))}
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage === totalPages}
+            aria-label="Next page"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       )}
     </div>
