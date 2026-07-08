@@ -288,32 +288,66 @@ function escapeControlCharsInStrings(input: string): string {
   return result
 }
 
-// Convert Python dict-style single-quoted strings to valid JSON double-quoted strings.
-// Handles: 'key': 'value', True/False/None, and escaped single quotes inside values.
+// Convert Python dict-style strings to valid JSON.
+// Handles:
+//   - Single-quoted keys/values: 'key': 'value'
+//   - Double-quoted values (e.g. summaryContent): "### Markdown\n..."
+//   - Mixed quoting in the same dict
+//   - True/False/None -> true/false/null
+//   - Escaped single quotes \' inside single-quoted strings
+//   - Literal control characters (\n \r \t) inside any string value
 function pythonDictToJson(s: string): string {
   let result = ""
   let i = 0
   while (i < s.length) {
     const ch = s[i]
+
     // Replace unquoted Python booleans and None
     if (s.startsWith("True", i) && !/\w/.test(s[i + 4] ?? "")) { result += "true"; i += 4; continue }
     if (s.startsWith("False", i) && !/\w/.test(s[i + 5] ?? "")) { result += "false"; i += 5; continue }
     if (s.startsWith("None", i) && !/\w/.test(s[i + 4] ?? "")) { result += "null"; i += 4; continue }
 
     if (ch === "'") {
-      // Collect the content of this single-quoted string
+      // Single-quoted string: convert to double-quoted JSON string
       let str = ""
-      i++ // skip opening quote
+      i++ // skip opening '
       while (i < s.length) {
-        if (s[i] === "\\" && s[i + 1] === "'") { str += "'"; i += 2; continue }
-        if (s[i] === "\\") { str += s[i] + (s[i + 1] ?? ""); i += 2; continue }
-        if (s[i] === "'") { i++; break } // closing quote
-        if (s[i] === '"') { str += '\\"'; i++; continue } // escape inner double quotes
+        if (s[i] === "\\" && s[i + 1] === "'") { str += "'"; i += 2; continue }        // \' -> '
+        if (s[i] === "\\" && s[i + 1] === "\\") { str += "\\\\"; i += 2; continue }    // \\ -> \\
+        if (s[i] === "\\") { str += s[i] + (s[i + 1] ?? ""); i += 2; continue }        // other escapes
+        if (s[i] === "'") { i++; break }                                                // closing '
+        if (s[i] === '"') { str += '\\"'; i++; continue }                              // " -> \"
+        if (s[i] === "\n") { str += "\\n"; i++; continue }                             // literal newline
+        if (s[i] === "\r") { str += "\\r"; i++; continue }
+        if (s[i] === "\t") { str += "\\t"; i++; continue }
         str += s[i++]
       }
       result += '"' + str + '"'
       continue
     }
+
+    if (ch === '"') {
+      // Double-quoted string: already uses JSON delimiters, but may contain
+      // literal control characters — pass through while fixing those.
+      let str = ""
+      i++ // skip opening "
+      while (i < s.length) {
+        if (s[i] === "\\" && s[i + 1] !== undefined) {
+          // Keep existing escape sequences as-is
+          str += s[i] + s[i + 1]
+          i += 2
+          continue
+        }
+        if (s[i] === '"') { i++; break }                  // closing "
+        if (s[i] === "\n") { str += "\\n"; i++; continue } // literal newline
+        if (s[i] === "\r") { str += "\\r"; i++; continue }
+        if (s[i] === "\t") { str += "\\t"; i++; continue }
+        str += s[i++]
+      }
+      result += '"' + str + '"'
+      continue
+    }
+
     result += ch
     i++
   }
