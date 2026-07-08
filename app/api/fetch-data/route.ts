@@ -244,26 +244,65 @@ function extractFieldsLeniently(input: string): Record<string, unknown> | null {
   return foundAny ? result : null
 }
 
+// Replace literal (unescaped) control characters inside JSON string values
+// by iterating character-by-character. This is more robust than a regex-based
+// approach for long values with Markdown content (###, -, newlines, etc.).
+function escapeControlCharsInStrings(input: string): string {
+  let result = ""
+  let inString = false
+  let escaped = false
+
+  for (let i = 0; i < input.length; i++) {
+    const char = input[i]
+    const code = input.charCodeAt(i)
+
+    if (escaped) {
+      result += char
+      escaped = false
+      continue
+    }
+
+    if (char === "\\") {
+      result += char
+      escaped = true
+      continue
+    }
+
+    if (char === '"') {
+      inString = !inString
+      result += char
+      continue
+    }
+
+    if (inString && code <= 0x1f) {
+      if (char === "\n") result += "\\n"
+      else if (char === "\r") result += "\\r"
+      else if (char === "\t") result += "\\t"
+      else result += "\\u" + code.toString(16).padStart(4, "0")
+      continue
+    }
+
+    result += char
+  }
+
+  return result
+}
+
 function parseAnswer(answer: string): Record<string, unknown> | null {
-  // Helper: attempt JSON.parse on a string with progressive fixes
   const tryParse = (s: string): Record<string, unknown> | null => {
-    // Attempt 1: sanitize control chars
+    // Attempt 1: escape control chars character-by-character (handles Markdown in summaryContent)
     try {
-      let parsed = JSON.parse(sanitizeJsonControlChars(s))
+      let parsed = JSON.parse(escapeControlCharsInStrings(s))
       if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
-      if (typeof parsed === "string") parsed = JSON.parse(sanitizeJsonControlChars(parsed))
+      if (typeof parsed === "string") parsed = JSON.parse(escapeControlCharsInStrings(parsed))
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>
       }
     } catch { /* fall through */ }
 
-    // Attempt 2: aggressively replace literal newlines inside strings before sanitizing
+    // Attempt 2: legacy sanitize path as backup
     try {
-      // Replace literal \n \r that appear inside string values with escaped versions
-      const cleaned = s.replace(/("(?:[^"\\]|\\.)*")/gs, (match) =>
-        match.replace(/\n/g, "\\n").replace(/\r/g, "\\r")
-      )
-      let parsed = JSON.parse(sanitizeJsonControlChars(cleaned))
+      let parsed = JSON.parse(sanitizeJsonControlChars(s))
       if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
       if (typeof parsed === "string") parsed = JSON.parse(sanitizeJsonControlChars(parsed))
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {

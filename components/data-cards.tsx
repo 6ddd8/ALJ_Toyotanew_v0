@@ -437,9 +437,28 @@ export function DataCards({ data, apiTotal }: DataCardsProps) {
 
                     {/* Summary Content */}
                     <FieldRow icon={FileText} label="Summary Content">
-                      <p className="text-sm text-foreground leading-relaxed break-words" dir="auto">
-                        {a.summaryContent}
-                      </p>
+                      <div className="flex flex-col gap-1 text-sm leading-relaxed break-words" dir="auto">
+                        {a.summaryContent === "-" ? (
+                          <span className="text-foreground">-</span>
+                        ) : (
+                          a.summaryContent.split("\n").map((line, i) => {
+                            const heading = line.match(/^###\s+(.+)/)
+                            if (heading) {
+                              return <p key={i} className="font-semibold text-foreground mt-1">{heading[1]}</p>
+                            }
+                            const bullet = line.match(/^\s*-\s+(.+)/)
+                            if (bullet) {
+                              return (
+                                <p key={i} className="text-muted-foreground pl-3 before:content-['•'] before:mr-1.5 before:text-primary">
+                                  {bullet[1]}
+                                </p>
+                              )
+                            }
+                            if (line.trim() === "") return <div key={i} className="h-1" />
+                            return <p key={i} className="text-foreground">{line}</p>
+                          })
+                        )}
+                      </div>
                     </FieldRow>
 
                   </div>
