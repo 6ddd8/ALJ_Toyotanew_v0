@@ -288,9 +288,41 @@ function escapeControlCharsInStrings(input: string): string {
   return result
 }
 
+// Convert Python dict-style single-quoted strings to valid JSON double-quoted strings.
+// Handles: 'key': 'value', True/False/None, and escaped single quotes inside values.
+function pythonDictToJson(s: string): string {
+  let result = ""
+  let i = 0
+  while (i < s.length) {
+    const ch = s[i]
+    // Replace unquoted Python booleans and None
+    if (s.startsWith("True", i) && !/\w/.test(s[i + 4] ?? "")) { result += "true"; i += 4; continue }
+    if (s.startsWith("False", i) && !/\w/.test(s[i + 5] ?? "")) { result += "false"; i += 5; continue }
+    if (s.startsWith("None", i) && !/\w/.test(s[i + 4] ?? "")) { result += "null"; i += 4; continue }
+
+    if (ch === "'") {
+      // Collect the content of this single-quoted string
+      let str = ""
+      i++ // skip opening quote
+      while (i < s.length) {
+        if (s[i] === "\\" && s[i + 1] === "'") { str += "'"; i += 2; continue }
+        if (s[i] === "\\") { str += s[i] + (s[i + 1] ?? ""); i += 2; continue }
+        if (s[i] === "'") { i++; break } // closing quote
+        if (s[i] === '"') { str += '\\"'; i++; continue } // escape inner double quotes
+        str += s[i++]
+      }
+      result += '"' + str + '"'
+      continue
+    }
+    result += ch
+    i++
+  }
+  return result
+}
+
 function parseAnswer(answer: string): Record<string, unknown> | null {
   const tryParse = (s: string): Record<string, unknown> | null => {
-    // Attempt 1: escape control chars character-by-character (handles Markdown in summaryContent)
+    // Attempt 1: escape control chars (handles standard JSON with newlines in summaryContent)
     try {
       let parsed = JSON.parse(escapeControlCharsInStrings(s))
       if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
@@ -298,11 +330,20 @@ function parseAnswer(answer: string): Record<string, unknown> | null {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>
       }
-    } catch (e1) {
-      console.log("[v0] parseAnswer attempt1 failed:", (e1 as Error).message, "| raw answer (first 300):", answer.slice(0, 300))
-    }
+    } catch { /* fall through */ }
 
-    // Attempt 2: legacy sanitize path as backup
+    // Attempt 2: convert Python dict single-quotes to JSON double-quotes, then escape control chars
+    try {
+      const converted = escapeControlCharsInStrings(pythonDictToJson(s))
+      let parsed = JSON.parse(converted)
+      if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
+      if (typeof parsed === "string") parsed = JSON.parse(escapeControlCharsInStrings(pythonDictToJson(parsed)))
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch { /* fall through */ }
+
+    // Attempt 3: legacy sanitize path
     try {
       let parsed = JSON.parse(sanitizeJsonControlChars(s))
       if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
@@ -310,20 +351,14 @@ function parseAnswer(answer: string): Record<string, unknown> | null {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>
       }
-    } catch (e2) {
-      console.log("[v0] parseAnswer attempt2 failed:", (e2 as Error).message)
-    }
+    } catch { /* fall through */ }
 
     return null
   }
 
   const result = tryParse(answer)
-  if (result) {
-    console.log("[v0] parseAnswer success, keys:", Object.keys(result))
-    return result
-  }
+  if (result) return result
 
-  console.log("[v0] parseAnswer falling back to extractFieldsLeniently for answer:", answer.slice(0, 200))
   // Fallback: tolerant extraction of the known fields.
   return extractFieldsLeniently(answer)
 }
