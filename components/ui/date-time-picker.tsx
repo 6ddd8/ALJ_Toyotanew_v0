@@ -3,13 +3,10 @@
 import * as React from "react"
 import { format, isValid, parse } from "date-fns"
 import { CalendarIcon } from "lucide-react"
-import { DayPicker } from "react-day-picker"
 
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import { Popover } from "@/components/ui/popover"
-import * as PopoverPrimitive from "@radix-ui/react-popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface DateTimePickerProps {
@@ -32,6 +29,19 @@ export function DateTimePicker({
   className,
 }: DateTimePickerProps) {
   const [open, setOpen] = React.useState(false)
+  const containerRef = React.useRef<HTMLDivElement>(null)
+
+  // Close when clicking outside this component
+  React.useEffect(() => {
+    if (!open) return
+    function handleClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false)
+      }
+    }
+    document.addEventListener("mousedown", handleClick)
+    return () => document.removeEventListener("mousedown", handleClick)
+  }, [open])
 
   // Parse the current value into a Date
   const parsed = value
@@ -74,95 +84,96 @@ export function DateTimePicker({
     : undefined
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverPrimitive.Trigger asChild>
-        <Button
-          variant="outline"
-          disabled={disabled}
-          className={cn(
-            "w-full justify-start gap-2 border-border/50 bg-secondary/50 text-left font-normal hover:bg-secondary",
-            !displayValue && "text-muted-foreground",
-            className
-          )}
-        >
-          <CalendarIcon data-icon="inline-start" />
-          {displayValue ?? placeholder}
-        </Button>
-      </PopoverPrimitive.Trigger>
-      {/* Render content without Portal so it stays inside the Dialog DOM tree,
-          preventing the Dialog from treating clicks inside the Popover as "outside" clicks. */}
-      <PopoverPrimitive.Content
+    // Relative container — the dropdown panel is absolutely positioned inside this
+    <div ref={containerRef} className={cn("relative w-full", className)}>
+      {/* Trigger button */}
+      <Button
+        type="button"
+        variant="outline"
+        disabled={disabled}
+        onClick={() => setOpen((v) => !v)}
         className={cn(
-          "z-[200] w-auto rounded-md border bg-popover p-0 text-popover-foreground shadow-md outline-none",
-          "data-[state=open]:animate-in data-[state=closed]:animate-out",
-          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-          "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2"
+          "w-full justify-start gap-2 border-border/50 bg-secondary/50 text-left font-normal hover:bg-secondary",
+          !displayValue && "text-muted-foreground"
         )}
-        align="start"
-        side="bottom"
-        sideOffset={4}
-        onInteractOutside={(e) => {
-          // Prevent the Dialog from closing when clicking inside the Popover
-          const target = e.target as HTMLElement
-          if (target.closest("[data-slot='dialog-content']")) {
-            e.preventDefault()
-          }
-        }}
       >
-        <div className="flex">
-          {/* Calendar */}
-          <Calendar
-            mode="single"
-            selected={selected}
-            onSelect={handleDaySelect}
-            initialFocus
-          />
+        <CalendarIcon data-icon="inline-start" />
+        {displayValue ?? placeholder}
+      </Button>
 
-          {/* Time columns */}
-          <div className="flex border-l border-border/50">
-            <TimeColumn
-              label="Hr"
-              count={24}
-              selected={currentHour}
-              onSelect={handleHour}
-              format={(n) => pad(n)}
+      {/* Inline dropdown — no Portal, stays inside Dialog DOM tree */}
+      {open && (
+        <div
+          className={cn(
+            "absolute left-0 top-full z-[200] mt-1 w-auto rounded-md border bg-popover",
+            "text-popover-foreground shadow-lg"
+          )}
+          // Prevent clicks inside the panel from bubbling up to the Dialog
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          <div className="flex">
+            {/* Calendar */}
+            <Calendar
+              mode="single"
+              selected={selected}
+              onSelect={handleDaySelect}
+              initialFocus
             />
-            <TimeColumn
-              label="Min"
-              count={60}
-              selected={currentMinute}
-              onSelect={handleMinute}
-              format={(n) => pad(n)}
-            />
-            <TimeColumn
-              label="Sec"
-              count={60}
-              selected={currentSecond}
-              onSelect={handleSecond}
-              format={(n) => pad(n)}
-            />
+
+            {/* Time columns */}
+            <div className="flex border-l border-border/50">
+              <TimeColumn
+                label="Hr"
+                count={24}
+                selected={currentHour}
+                onSelect={handleHour}
+              />
+              <TimeColumn
+                label="Min"
+                count={60}
+                selected={currentMinute}
+                onSelect={handleMinute}
+              />
+              <TimeColumn
+                label="Sec"
+                count={60}
+                selected={currentSecond}
+                onSelect={handleSecond}
+              />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="flex items-center justify-between border-t border-border/50 px-3 py-2">
+            <span className="text-xs text-muted-foreground">
+              {displayValue ?? "No date selected"}
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="ghost"
+                type="button"
+                className="h-7 text-xs text-destructive hover:text-destructive"
+                onClick={() => {
+                  onChange?.("")
+                  setOpen(false)
+                }}
+              >
+                Clear
+              </Button>
+              <Button
+                size="sm"
+                type="button"
+                className="h-7 text-xs"
+                onClick={() => setOpen(false)}
+              >
+                Done
+              </Button>
+            </div>
           </div>
         </div>
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-border/50 px-3 py-2">
-          <span className="text-xs text-muted-foreground">
-            {displayValue ?? "No date selected"}
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 text-xs text-destructive hover:text-destructive"
-            onClick={() => {
-              onChange?.("")
-              setOpen(false)
-            }}
-          >
-            Clear
-          </Button>
-        </div>
-      </PopoverPrimitive.Content>
-    </Popover>
+      )}
+    </div>
   )
 }
 
@@ -171,19 +182,12 @@ interface TimeColumnProps {
   count: number
   selected: number
   onSelect: (n: number) => void
-  format: (n: number) => string
 }
 
-function TimeColumn({
-  label,
-  count,
-  selected,
-  onSelect,
-  format,
-}: TimeColumnProps) {
+function TimeColumn({ label, count, selected, onSelect }: TimeColumnProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null)
 
-  // Scroll selected item into view when the column mounts or selected changes
+  // Scroll selected item into view on mount and when selection changes
   React.useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -191,7 +195,7 @@ function TimeColumn({
     if (item) {
       item.scrollIntoView({ block: "center" })
     }
-  }, [selected, scrollRef])
+  }, [selected])
 
   return (
     <div className="flex w-12 flex-col">
@@ -213,7 +217,7 @@ function TimeColumn({
                   : "text-foreground hover:bg-accent hover:text-accent-foreground"
               )}
             >
-              {format(i)}
+              {pad(i)}
             </button>
           ))}
         </div>
