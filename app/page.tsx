@@ -14,7 +14,7 @@ import type { ApiConfig, DataRow } from "@/lib/types"
 const STORAGE_KEY = "dyna-api-config"
 const CONFIG_VERSION_KEY = "dyna-api-config-version"
 // Update this version when default config changes to clear old cached values
-const CURRENT_CONFIG_VERSION = "2"
+const CURRENT_CONFIG_VERSION = "3"
 
 export default function DashboardPage() {
   const [config, setConfig] = useState<ApiConfig>(DEFAULT_CONFIG)

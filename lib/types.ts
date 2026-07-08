@@ -23,8 +23,8 @@ function getNowString(): string {
 }
 
 export const DEFAULT_CONFIG: ApiConfig = {
-  robotKey: "0t0Ghhpnf37TvG6X6P4krQQlP24%3D",
-  robotToken: "MTc4MDg4NDMzMjI0NApBSUhSa3NER0NEekFhVkd2dmNiaGQrRmYveHc9",
+  robotKey: "ld5DUU9nIHm3mQXKcXMqoEgdi2Q%3D",
+  robotToken: "MTc3NzI4MDA4ODk1MQp4a2l6UVlYY1BzMENrTEF3alhINFgraGN0YU09",
   startTime: "2026-07-07 00:00:00",
   endTime: getNowString(),
 }
