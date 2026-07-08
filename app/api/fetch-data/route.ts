@@ -298,7 +298,9 @@ function parseAnswer(answer: string): Record<string, unknown> | null {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>
       }
-    } catch { /* fall through */ }
+    } catch (e1) {
+      console.log("[v0] parseAnswer attempt1 failed:", (e1 as Error).message, "| raw answer (first 300):", answer.slice(0, 300))
+    }
 
     // Attempt 2: legacy sanitize path as backup
     try {
@@ -308,14 +310,20 @@ function parseAnswer(answer: string): Record<string, unknown> | null {
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
         return parsed as Record<string, unknown>
       }
-    } catch { /* fall through */ }
+    } catch (e2) {
+      console.log("[v0] parseAnswer attempt2 failed:", (e2 as Error).message)
+    }
 
     return null
   }
 
   const result = tryParse(answer)
-  if (result) return result
+  if (result) {
+    console.log("[v0] parseAnswer success, keys:", Object.keys(result))
+    return result
+  }
 
+  console.log("[v0] parseAnswer falling back to extractFieldsLeniently for answer:", answer.slice(0, 200))
   // Fallback: tolerant extraction of the known fields.
   return extractFieldsLeniently(answer)
 }
