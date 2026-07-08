@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useMemo, useCallback } from "react"
+
 import {
-  Search, Calendar, X, Download, Phone, MessageSquare,
-  ChevronDown, Headphones, Car, CreditCard, Clock,
+  Search, Calendar, X, Download, Phone,
+  Headphones, Car, CreditCard, Clock,
   ShoppingCart, Palette, TrendingUp, CheckCircle, FileText, Tag, Star
 } from "lucide-react"
 import { Card, CardContent } from "@/components/ui/card"
@@ -12,7 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import * as XLSX from "xlsx"
 import type { DataRow } from "@/lib/types"
-import { DialogueView } from "@/components/dialogue-view"
+
 
 interface DataCardsProps {
   data: DataRow[]
@@ -218,11 +219,6 @@ function SubField({ label, value }: { label: string; value: string }) {
 
 export function DataCards({ data }: DataCardsProps) {
   const [searchQuery, setSearchQuery] = useState("")
-  const [expandedCards, setExpandedCards] = useState<Record<string, boolean>>({})
-
-  const toggleExpanded = useCallback((id: string) => {
-    setExpandedCards((prev) => ({ ...prev, [id]: !prev[id] }))
-  }, [])
 
   const filteredData = useMemo(() => {
     if (!searchQuery.trim()) return data
@@ -282,7 +278,6 @@ export function DataCards({ data }: DataCardsProps) {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredData.map((row) => {
             const a = extractAnswerData(row.rawData)
-            const isExpanded = !!expandedCards[row.id]
 
             return (
               <Card key={row.id} className="relative border-border/50 bg-card transition-shadow hover:shadow-md">
@@ -313,28 +308,6 @@ export function DataCards({ data }: DataCardsProps) {
                         <Download className="h-4 w-4" />
                       </button>
                     </div>
-                  </div>
-
-                  {/* Conversation History - collapsible */}
-                  <div className="mb-3 rounded-lg border border-border/50">
-                    <button
-                      onClick={() => toggleExpanded(row.id)}
-                      className="flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left transition-colors hover:bg-secondary/50"
-                      aria-expanded={isExpanded}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <MessageSquare className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-xs font-medium text-foreground">Conversation History</span>
-                      </span>
-                      <ChevronDown
-                        className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`}
-                      />
-                    </button>
-                    {isExpanded && (
-                      <div className="max-h-80 overflow-y-auto border-t border-border/50 px-3 py-3">
-                        <DialogueView dialogue={row.historyDialogue} />
-                      </div>
-                    )}
                   </div>
 
                   {/* Fields */}
