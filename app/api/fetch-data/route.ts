@@ -155,88 +155,129 @@ function parseAudioInfo(audio: unknown): { url: string; fileName: string } | nul
   return { url: urlMatch[1], fileName }
 }
 
+// Object fields that should be extracted as nested objects (not plain strings)
+const OBJECT_ANSWER_FIELDS: Record<string, string[]> = {
+  gradeSelection: ["value", "note"],
+  colorPreference: ["first", "second", "third"],
+  purchaseType: ["value", "note"],
+}
+
 // Lenient extractor used as a last resort when strict JSON.parse fails.
-// Some answers contain UNESCAPED double quotes inside string values
-// (e.g. ... "سمة" ...), which breaks any JSON parser. For each known field
-// we locate `"key":"` and then read forward until we find the value's real
-// closing quote: an unescaped `"` that is immediately followed (ignoring
-// whitespace) by a `,` or `}`. Inner unescaped quotes are tolerated because
-// they are not followed by those structural characters.
 function extractFieldsLeniently(input: string): Record<string, unknown> | null {
   const result: Record<string, unknown> = {}
   let foundAny = false
 
-  for (const key of KNOWN_ANSWER_FIELDS) {
+  // Extract a plain string value for "key": "..."
+  const extractStringValue = (src: string, key: string): string | null => {
     const keyPattern = new RegExp(`"${key}"\\s*:\\s*"`)
-    const match = input.match(keyPattern)
-    if (!match || match.index === undefined) continue
+    const match = src.match(keyPattern)
+    if (!match || match.index === undefined) return null
 
     const valueStart = match.index + match[0].length
     let i = valueStart
     let value = ""
 
-    while (i < input.length) {
-      const char = input[i]
-
-      // Preserve escape sequences verbatim so decodeDialogue can handle them
-      if (char === "\\" && i + 1 < input.length) {
-        value += char + input[i + 1]
+    while (i < src.length) {
+      const char = src[i]
+      if (char === "\\" && i + 1 < src.length) {
+        value += char + src[i + 1]
         i += 2
         continue
       }
-
       if (char === '"') {
-        // Look ahead past whitespace to decide if this quote closes the value
         let j = i + 1
-        while (j < input.length && /\s/.test(input[j])) j++
-        const next = input[j]
-        if (next === "," || next === "}" || next === undefined) {
-          break // real closing quote
-        }
-        // Otherwise it's an inner unescaped quote: keep it as part of the value
+        while (j < src.length && /\s/.test(src[j])) j++
+        const next = src[j]
+        if (next === "," || next === "}" || next === undefined) break
         value += char
         i++
         continue
       }
-
       value += char
       i++
     }
+    return decodeDialogue(value)
+  }
 
-    result[key] = decodeDialogue(value)
-    foundAny = true
+  // Extract the raw substring for an object value: "key": { ... }
+  const extractObjectBlock = (src: string, key: string): string | null => {
+    const keyPattern = new RegExp(`"${key}"\\s*:\\s*\\{`)
+    const match = src.match(keyPattern)
+    if (!match || match.index === undefined) return null
+
+    const start = match.index + match[0].length - 1 // points to '{'
+    let depth = 0
+    let i = start
+    while (i < src.length) {
+      if (src[i] === "{") depth++
+      else if (src[i] === "}") {
+        depth--
+        if (depth === 0) return src.slice(start, i + 1)
+      }
+      i++
+    }
+    return null
+  }
+
+  for (const key of KNOWN_ANSWER_FIELDS) {
+    if (key in OBJECT_ANSWER_FIELDS) {
+      // Try to extract nested object
+      const block = extractObjectBlock(input, key)
+      if (block) {
+        const subKeys = OBJECT_ANSWER_FIELDS[key]
+        const obj: Record<string, string> = {}
+        for (const subKey of subKeys) {
+          obj[subKey] = extractStringValue(block, subKey) ?? "-"
+        }
+        result[key] = obj
+        foundAny = true
+      }
+    } else {
+      const value = extractStringValue(input, key)
+      if (value !== null) {
+        result[key] = value
+        foundAny = true
+      }
+    }
   }
 
   return foundAny ? result : null
 }
 
 function parseAnswer(answer: string): Record<string, unknown> | null {
-  try {
-    // First attempt: try parsing the sanitized payload directly
-    let parsed = JSON.parse(sanitizeJsonControlChars(answer))
+  // Helper: attempt JSON.parse on a string with progressive fixes
+  const tryParse = (s: string): Record<string, unknown> | null => {
+    // Attempt 1: sanitize control chars
+    try {
+      let parsed = JSON.parse(sanitizeJsonControlChars(s))
+      if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
+      if (typeof parsed === "string") parsed = JSON.parse(sanitizeJsonControlChars(parsed))
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch { /* fall through */ }
 
-    // If it's an array, get the first element (e.g., ["{ ... }"])
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      parsed = parsed[0]
-    }
+    // Attempt 2: aggressively replace literal newlines inside strings before sanitizing
+    try {
+      // Replace literal \n \r that appear inside string values with escaped versions
+      const cleaned = s.replace(/("(?:[^"\\]|\\.)*")/gs, (match) =>
+        match.replace(/\n/g, "\\n").replace(/\r/g, "\\r")
+      )
+      let parsed = JSON.parse(sanitizeJsonControlChars(cleaned))
+      if (Array.isArray(parsed) && parsed.length > 0) parsed = parsed[0]
+      if (typeof parsed === "string") parsed = JSON.parse(sanitizeJsonControlChars(parsed))
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>
+      }
+    } catch { /* fall through */ }
 
-    // If the result is still a string, it may be double-encoded JSON
-    // e.g., "{\"phoneNumber\":\"123\"}" or with escaped newlines
-    if (typeof parsed === "string") {
-      parsed = JSON.parse(sanitizeJsonControlChars(parsed))
-    }
-
-    // Final check: ensure it's a valid object
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as Record<string, unknown>
-    }
-  } catch {
-    // Strict parsing failed (often due to unescaped quotes inside values).
-    // Fall through to the lenient field-by-field extractor below.
+    return null
   }
 
-  // Fallback: tolerant extraction of the known fields. This also handles the
-  // double-encoded case where the payload is wrapped in array/string syntax.
+  const result = tryParse(answer)
+  if (result) return result
+
+  // Fallback: tolerant extraction of the known fields.
   return extractFieldsLeniently(answer)
 }
 
