@@ -299,14 +299,10 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
   }
 
   const segments: SegmentItem[] = segmentData.data?.list || []
-
-  // Filter only openapi-ws segments
-  const openapiWsSegments = segments.filter(
-    (seg) => seg.message_source === "openapi-ws"
-  )
+  console.log("[v0] API 1 total segments returned:", segments.length)
 
   // API 2: Get details for each segment
-  const detailPromises = openapiWsSegments.map(async (segment) => {
+  const detailPromises = segments.map(async (segment) => {
     const api2Body = {
       username,
       segment_code: segment.segment_code,
@@ -337,10 +333,10 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
     }
 
     const details: DetailItem[] = detailData.data?.list || []
+    console.log("[v0] API 2 segment:", segment.segment_code, "details count:", details.length)
 
-    // Filter only openapi-ws messages with valid JSON answers
+    // Map all detail items with valid JSON answers
     return details
-      .filter((detail) => detail.message_source === "openapi-ws")
       .map((detail, index) => {
         const parsed = parseAnswer(detail.answer)
 
