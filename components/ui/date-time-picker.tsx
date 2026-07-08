@@ -8,11 +8,8 @@ import { DayPicker } from "react-day-picker"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover } from "@/components/ui/popover"
+import * as PopoverPrimitive from "radix-ui/react-popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface DateTimePickerProps {
@@ -78,7 +75,7 @@ export function DateTimePicker({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+      <PopoverPrimitive.Trigger asChild>
         <Button
           variant="outline"
           disabled={disabled}
@@ -91,11 +88,27 @@ export function DateTimePicker({
           <CalendarIcon data-icon="inline-start" />
           {displayValue ?? placeholder}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-auto p-0"
+      </PopoverPrimitive.Trigger>
+      {/* Render content without Portal so it stays inside the Dialog DOM tree,
+          preventing the Dialog from treating clicks inside the Popover as "outside" clicks. */}
+      <PopoverPrimitive.Content
+        className={cn(
+          "z-[200] w-auto rounded-md border bg-popover p-0 text-popover-foreground shadow-md outline-none",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+          "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          "data-[side=bottom]:slide-in-from-top-2 data-[side=top]:slide-in-from-bottom-2"
+        )}
         align="start"
         side="bottom"
+        sideOffset={4}
+        onInteractOutside={(e) => {
+          // Prevent the Dialog from closing when clicking inside the Popover
+          const target = e.target as HTMLElement
+          if (target.closest("[data-slot='dialog-content']")) {
+            e.preventDefault()
+          }
+        }}
       >
         <div className="flex">
           {/* Calendar */}
@@ -148,7 +161,7 @@ export function DateTimePicker({
             Clear
           </Button>
         </div>
-      </PopoverContent>
+      </PopoverPrimitive.Content>
     </Popover>
   )
 }
