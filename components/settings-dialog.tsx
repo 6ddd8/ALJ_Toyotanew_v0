@@ -82,7 +82,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
                   setLocalConfig({ ...localConfig, robotKey: e.target.value })
                   if (errors.robotKey) setErrors((prev) => ({ ...prev, robotKey: false }))
                 }}
-                placeholder="Enter cybertron-robot-key"
+                placeholder="Enter Robot Key"
                 aria-invalid={errors.robotKey || undefined}
                 className={`mt-1.5 bg-secondary/50 focus:border-primary focus:ring-primary ${
                   errors.robotKey
@@ -104,7 +104,7 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
                   setLocalConfig({ ...localConfig, robotToken: e.target.value })
                   if (errors.robotToken) setErrors((prev) => ({ ...prev, robotToken: false }))
                 }}
-                placeholder="Enter cybertron-robot-token"
+                placeholder="Enter Robot Token"
                 aria-invalid={errors.robotToken || undefined}
                 className={`mt-1.5 bg-secondary/50 focus:border-primary focus:ring-primary ${
                   errors.robotToken
