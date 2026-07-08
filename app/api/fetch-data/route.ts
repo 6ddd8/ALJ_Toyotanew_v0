@@ -291,6 +291,7 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
   }
 
   const segmentData = await segmentListResponse.json()
+  console.log("[v0] API 1 Response:", JSON.stringify(segmentData, null, 2))
 
   if (segmentData.code !== "000000") {
     throw new Error(segmentData.message || "API 1 returned an error")
@@ -328,6 +329,7 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
     }
 
     const detailData = await detailResponse.json()
+    console.log("[v0] API 2 Response (segment:", segment.segment_code, "):", JSON.stringify(detailData, null, 2))
 
     if (detailData.code !== "000000") {
       return []
