@@ -272,6 +272,7 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
     create_end_time: endTime || "",
     page,
     pagesize,
+    message_source: "openapi-ws",
   }
   console.log("[v0] API 1 URL:", "https://agents.dyna.ai/openapi/v1/conversation/segment/get_list/")
   console.log("[v0] API 1 Headers:", { "cybertron-robot-key": robotKey, "cybertron-robot-token": robotToken })
