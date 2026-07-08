@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Settings, Key, Calendar } from "lucide-react"
+import { Settings, Key, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 import type { ApiConfig } from "@/lib/types"
 
 interface SettingsDialogProps {
@@ -88,45 +89,25 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
           {/* Time Range Section */}
           <div className="mt-5">
             <div className="flex items-center gap-2 mb-3">
-              <Calendar className="h-4 w-4 text-primary" />
+              <Clock className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-foreground">Time Range</span>
-              <span className="text-xs text-muted-foreground">（可选，不填则拉取全部数据）</span>
+              <span className="text-xs text-muted-foreground">Optional — leave blank to fetch all data</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field>
                 <FieldLabel className="text-xs font-medium text-muted-foreground">Start Time</FieldLabel>
-                <Input
-                  type="datetime-local"
-                  step="1"
-                  value={localConfig.startTime
-                    ? localConfig.startTime.replace(" ", "T")
-                    : ""}
-                  onChange={(e) => {
-                    const val = e.target.value
-                    setLocalConfig({
-                      ...localConfig,
-                      startTime: val ? val.replace("T", " ") + (val.length === 16 ? ":00" : "") : "",
-                    })
-                  }}
-                  className="mt-1 border-border/50 bg-secondary/50 focus:border-primary focus:ring-primary text-sm"
+                <DateTimePicker
+                  value={localConfig.startTime}
+                  onChange={(val) => setLocalConfig({ ...localConfig, startTime: val })}
+                  placeholder="Select start time"
                 />
               </Field>
               <Field>
                 <FieldLabel className="text-xs font-medium text-muted-foreground">End Time</FieldLabel>
-                <Input
-                  type="datetime-local"
-                  step="1"
-                  value={localConfig.endTime
-                    ? localConfig.endTime.replace(" ", "T")
-                    : ""}
-                  onChange={(e) => {
-                    const val = e.target.value
-                    setLocalConfig({
-                      ...localConfig,
-                      endTime: val ? val.replace("T", " ") + (val.length === 16 ? ":00" : "") : "",
-                    })
-                  }}
-                  className="mt-1 border-border/50 bg-secondary/50 focus:border-primary focus:ring-primary text-sm"
+                <DateTimePicker
+                  value={localConfig.endTime}
+                  onChange={(val) => setLocalConfig({ ...localConfig, endTime: val })}
+                  placeholder="Select end time"
                 />
               </Field>
             </div>
