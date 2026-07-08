@@ -29,4 +29,4 @@ export const DEFAULT_CONFIG: ApiConfig = {
   endTime: getNowString(),
 }
 
-export const DEFAULT_USERNAME = "william.pang@dyna.ai"
+export const DEFAULT_USERNAME = "rena.lee@dyna.ai"

@@ -354,7 +354,7 @@ export async function POST(request: NextRequest) {
   try {
     const { robotKey, robotToken, username, page = 1, pagesize = 100, startTime, endTime } = await request.json()
 
-    const effectiveUsername = username || "william.pang@dyna.ai"
+    const effectiveUsername = username || "rena.lee@dyna.ai"
 
     if (!robotKey || !robotToken) {
       return NextResponse.json(
