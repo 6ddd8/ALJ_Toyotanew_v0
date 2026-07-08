@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Settings, Key } from "lucide-react"
+import { Settings, Key, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field"
+import { DateTimePicker } from "@/components/ui/date-time-picker"
 import type { ApiConfig } from "@/lib/types"
 
 interface SettingsDialogProps {
@@ -84,6 +85,32 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
               />
             </Field>
           </FieldGroup>
+
+          {/* Time Range Section */}
+          <div className="mt-5">
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium text-foreground">Time Range</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field>
+                <FieldLabel className="text-xs font-medium text-muted-foreground">Start Time</FieldLabel>
+                <DateTimePicker
+                  value={localConfig.startTime}
+                  onChange={(val) => setLocalConfig({ ...localConfig, startTime: val })}
+                  placeholder="Select start time"
+                />
+              </Field>
+              <Field>
+                <FieldLabel className="text-xs font-medium text-muted-foreground">End Time</FieldLabel>
+                <DateTimePicker
+                  value={localConfig.endTime}
+                  onChange={(val) => setLocalConfig({ ...localConfig, endTime: val })}
+                  placeholder="Select end time"
+                />
+              </Field>
+            </div>
+          </div>
         </div>
         <DialogFooter className="mt-6">
           <Button variant="ghost" onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground">

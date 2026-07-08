@@ -14,7 +14,7 @@ import type { ApiConfig, DataRow } from "@/lib/types"
 const STORAGE_KEY = "dyna-api-config"
 const CONFIG_VERSION_KEY = "dyna-api-config-version"
 // Update this version when default config changes to clear old cached values
-const CURRENT_CONFIG_VERSION = "2"
+const CURRENT_CONFIG_VERSION = "3"
 
 export default function DashboardPage() {
   const [config, setConfig] = useState<ApiConfig>(DEFAULT_CONFIG)
@@ -74,6 +74,8 @@ export default function DashboardPage() {
           robotKey: config.robotKey,
           robotToken: config.robotToken,
           username: DEFAULT_USERNAME,
+          startTime: config.startTime || "",
+          endTime: config.endTime || "",
         }),
       })
 
@@ -98,34 +100,39 @@ export default function DashboardPage() {
   // Calculate stats based on the new data format
   const stats = useMemo(() => {
     const total = data.length
-    let willingToPay = 0
-    let notWillingToPay = 0
-    let hasPromisedDate = 0
-
-    // Positive responses: English (yes, y) and Arabic (نعم)
-    const positiveResponses = ["yes", "y", "نعم"]
-    // Negative responses: English (no, n) and Arabic (لا)
-    const negativeResponses = ["no", "n", "لا"]
+    let answeredCalls = 0
+    let hotLeads = 0
+    let followUpRequired = 0
 
     data.forEach((row) => {
-      const raw = row.rawData as Record<string, string | undefined>
-      
-      // Check WillingToPay - handle both English and Arabic, case-insensitive
-      const willingToPayValue = raw.WillingToPay?.trim().toLowerCase()
-      if (willingToPayValue && positiveResponses.includes(willingToPayValue)) {
-        willingToPay++
-      } else if (willingToPayValue && negativeResponses.includes(willingToPayValue)) {
-        notWillingToPay++
+      const raw = row.rawData as Record<string, unknown>
+
+      // Answered Calls: callAnswered === "Y"
+      const callAnswered = typeof raw.callAnswered === "string"
+        ? raw.callAnswered.trim()
+        : ""
+      if (callAnswered === "Y") {
+        answeredCalls++
       }
-      
-      // Check PromisedDate
-      const promisedDate = raw.PromisedDate?.trim()
-      if (promisedDate && promisedDate.toLowerCase() !== "null" && promisedDate !== "-" && promisedDate !== "") {
-        hasPromisedDate++
+
+      // Hot Leads: postCallLeadClassification === "Hot"
+      const classification = typeof raw.postCallLeadClassification === "string"
+        ? raw.postCallLeadClassification.trim()
+        : ""
+      if (classification === "Hot") {
+        hotLeads++
+      }
+
+      // Follow-up Required: followUpRequired === "Yes"
+      const followUp = typeof raw.followUpRequired === "string"
+        ? raw.followUpRequired.trim()
+        : ""
+      if (followUp === "Yes") {
+        followUpRequired++
       }
     })
 
-    return { totalRecords: total, willingToPay, notWillingToPay, hasPromisedDate }
+    return { totalRecords: total, answeredCalls, hotLeads, followUpRequired }
   }, [data])
 
   return (
@@ -138,8 +145,8 @@ export default function DashboardPage() {
               <Database className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-foreground">Call Data Analytics</h1>
-              <p className="text-xs text-muted-foreground">Customer Payment Intent Tracking Dashboard</p>
+              <h1 className="text-lg font-semibold text-foreground">Conversation Analytics</h1>
+              <p className="text-xs text-muted-foreground">Real-time lead tracking dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -211,8 +218,8 @@ export default function DashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground">Willing to Pay</p>
-                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.willingToPay}</p>
+                      <p className="text-xs font-medium text-muted-foreground">Answered Calls</p>
+                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.answeredCalls}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.7_0.18_150/0.1)]">
                       <CreditCard className="h-5 w-5 text-[oklch(0.7_0.18_150)]" />
@@ -224,8 +231,8 @@ export default function DashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground">Not Willing to Pay</p>
-                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.notWillingToPay}</p>
+                      <p className="text-xs font-medium text-muted-foreground">Hot Leads</p>
+                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.hotLeads}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.55_0.22_25/0.1)]">
                       <CreditCard className="h-5 w-5 text-[oklch(0.65_0.22_25)]" />
@@ -237,8 +244,8 @@ export default function DashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground">Has Promised Date</p>
-                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.hasPromisedDate}</p>
+                      <p className="text-xs font-medium text-muted-foreground">Follow-up Required</p>
+                      <p className="mt-1 text-2xl font-bold text-foreground">{stats.followUpRequired}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.7_0.15_230/0.1)]">
                       <CalendarCheck className="h-5 w-5 text-[oklch(0.7_0.15_230)]" />

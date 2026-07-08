@@ -118,9 +118,23 @@ function sanitizeJsonControlChars(input: string): string {
 // The known string fields contained in the Dyna.AI "answer" payload.
 const KNOWN_ANSWER_FIELDS = [
   "phoneNumber",
-  "DelayReason",
-  "WillingToPay",
-  "PromisedDate",
+  "vehicleWeb",
+  "gradeWeb",
+  "paymentTypeWeb",
+  "callAnswered",
+  "ifGuestBusySuitableCallbackTime",
+  "modelSelection",
+  "gradeSelection",
+  "colorPreference",
+  "purchaseType",
+  "budgetIfCash",
+  "financialEntityIfFinance",
+  "purchaseTimeline",
+  "confirmToCreateOrder",
+  "accessories",
+  "postCallLeadClassification",
+  "followUpRequired",
+  "summaryContent",
   "historyDialogue",
   "audio",
 ]
@@ -225,15 +239,6 @@ function parseAnswer(answer: string): Record<string, unknown> | null {
   // double-encoded case where the payload is wrapped in array/string syntax.
   return extractFieldsLeniently(answer)
 }
-
-// Fixed credentials and time range for the required set of records.
-// These records are ALWAYS fetched (using this specific key/token pair and
-// limited to the create_time window below) and merged with the records that
-// come from the user-configured key/token in the request body.
-const FIXED_ROBOT_KEY = "uz2e7c3iC6h56EciokWMy2x%2Bjmk%3D"
-const FIXED_ROBOT_TOKEN = "MTc4MDQ4NTk2MTE0NwptV0hTVGNsTXBIcTRNdmNOMGxlc2s0Uk5jeU09"
-const FIXED_START_TIME = "2026-06-07 20:00:00"
-const FIXED_END_TIME = "2026-06-07 21:00:00"
 
 interface FetchOptions {
   robotKey: string
@@ -361,49 +366,34 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
 
 export async function POST(request: NextRequest) {
   try {
-    const { robotKey, robotToken, username, page = 1, pagesize = 100 } = await request.json()
+    const { robotKey, robotToken, username, page = 1, pagesize = 100, startTime, endTime } = await request.json()
 
-    const effectiveUsername = username || "william.pang@dyna.ai"
+    const effectiveUsername = username || "rena.lee@dyna.ai"
 
-    // 1) Always fetch the fixed set of records (fixed credentials + time range)
-    const fixedPromise = fetchRecords({
-      robotKey: FIXED_ROBOT_KEY,
-      robotToken: FIXED_ROBOT_TOKEN,
+    if (!robotKey || !robotToken) {
+      return NextResponse.json(
+        { error: "Robot Key and Robot Token are required." },
+        { status: 400 }
+      )
+    }
+
+    // Fetch records using the user-configured credentials and time range
+    const configuredRecords = await fetchRecords({
+      robotKey,
+      robotToken,
       username: effectiveUsername,
       page,
       pagesize,
-      startTime: FIXED_START_TIME,
-      endTime: FIXED_END_TIME,
-      idPrefix: "fixed",
+      startTime: startTime || undefined,
+      endTime: endTime || undefined,
+      idPrefix: "config",
     }).catch((err) => {
-      console.error("Error fetching fixed records:", err)
+      console.error("Error fetching configured records:", err)
       return [] as DataRow[]
     })
 
-    // 2) If user-configured credentials are provided, also fetch those records
-    //    (no time filter), and merge them with the fixed set.
-    const configuredPromise =
-      robotKey && robotToken
-        ? fetchRecords({
-            robotKey,
-            robotToken,
-            username: effectiveUsername,
-            page,
-            pagesize,
-            idPrefix: "config",
-          }).catch((err) => {
-            console.error("Error fetching configured records:", err)
-            return [] as DataRow[]
-          })
-        : Promise.resolve([] as DataRow[])
-
-    const [fixedRecords, configuredRecords] = await Promise.all([
-      fixedPromise,
-      configuredPromise,
-    ])
-
-    // Merge both sets and deduplicate by record content (segment + phone + time)
-    const merged = [...fixedRecords, ...configuredRecords]
+    // Deduplicate by record content (phone + time + dialogue)
+    const merged = [...configuredRecords]
     const seen = new Set<string>()
     const deduped: DataRow[] = []
     for (const row of merged) {
