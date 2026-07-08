@@ -264,20 +264,25 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
   }
 
   // API 1: Get segment list
+  const api1Body = {
+    username,
+    filter_mode: 0,
+    filter_user_code: "",
+    create_start_time: startTime || "",
+    create_end_time: endTime || "",
+    page,
+    pagesize,
+  }
+  console.log("[v0] API 1 URL:", "https://agents.dyna.ai/openapi/v1/conversation/segment/get_list/")
+  console.log("[v0] API 1 Headers:", { "cybertron-robot-key": robotKey, "cybertron-robot-token": robotToken })
+  console.log("[v0] API 1 Body:", JSON.stringify(api1Body, null, 2))
+
   const segmentListResponse = await fetch(
     "https://agents.dyna.ai/openapi/v1/conversation/segment/get_list/",
     {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        username,
-        filter_mode: 0,
-        filter_user_code: "",
-        create_start_time: startTime || "",
-        create_end_time: endTime || "",
-        page,
-        pagesize,
-      }),
+      body: JSON.stringify(api1Body),
     }
   )
 
@@ -300,17 +305,21 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
 
   // API 2: Get details for each segment
   const detailPromises = openapiWsSegments.map(async (segment) => {
+    const api2Body = {
+      username,
+      segment_code: segment.segment_code,
+      page: 1,
+      pagesize: 100,
+    }
+    console.log("[v0] API 2 URL:", "https://agents.dyna.ai/openapi/v1/conversation/segment/detail_list/")
+    console.log("[v0] API 2 Body:", JSON.stringify(api2Body, null, 2))
+
     const detailResponse = await fetch(
       "https://agents.dyna.ai/openapi/v1/conversation/segment/detail_list/",
       {
         method: "POST",
         headers,
-        body: JSON.stringify({
-          username,
-          segment_code: segment.segment_code,
-          page: 1,
-          pagesize: 100,
-        }),
+        body: JSON.stringify(api2Body),
       }
     )
 
