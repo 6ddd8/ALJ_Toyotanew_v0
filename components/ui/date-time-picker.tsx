@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover } from "@/components/ui/popover"
-import * as PopoverPrimitive from "radix-ui/react-popover"
+import * as PopoverPrimitive from "@radix-ui/react-popover"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface DateTimePickerProps {
