@@ -140,8 +140,8 @@ export default function DashboardPage() {
               <Database className="h-5 w-5 text-primary" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-foreground">Call Data Analytics</h1>
-              <p className="text-xs text-muted-foreground">Customer Payment Intent Tracking Dashboard</p>
+              <h1 className="text-lg font-semibold text-foreground">Conversation Analytics</h1>
+              <p className="text-xs text-muted-foreground">Real-time lead tracking dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -213,7 +213,7 @@ export default function DashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground">Willing to Pay</p>
+                      <p className="text-xs font-medium text-muted-foreground">Answered Calls</p>
                       <p className="mt-1 text-2xl font-bold text-foreground">{stats.willingToPay}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.7_0.18_150/0.1)]">
@@ -226,7 +226,7 @@ export default function DashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground">Not Willing to Pay</p>
+                      <p className="text-xs font-medium text-muted-foreground">Hot Leads</p>
                       <p className="mt-1 text-2xl font-bold text-foreground">{stats.notWillingToPay}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.55_0.22_25/0.1)]">
@@ -239,7 +239,7 @@ export default function DashboardPage() {
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-xs font-medium text-muted-foreground">Has Promised Date</p>
+                      <p className="text-xs font-medium text-muted-foreground">Follow-up Required</p>
                       <p className="mt-1 text-2xl font-bold text-foreground">{stats.hasPromisedDate}</p>
                     </div>
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[oklch(0.7_0.15_230/0.1)]">
