@@ -248,13 +248,17 @@ interface FetchOptions {
   pagesize: number
   startTime?: string
   endTime?: string
-  // Prefix to keep row ids unique across the two data sources
   idPrefix: string
 }
 
+interface FetchResult {
+  rows: DataRow[]
+  apiTotal: number
+}
+
 // Fetch a set of records via API 1 (segment list) + API 2 (segment detail)
-// for a given key/token (and optional time range). Returns parsed DataRows.
-async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
+// for a given key/token (and optional time range). Returns parsed DataRows and the API 1 total.
+async function fetchRecords(options: FetchOptions): Promise<FetchResult> {
   const { robotKey, robotToken, username, page, pagesize, startTime, endTime, idPrefix } = options
 
   const headers = {
@@ -298,8 +302,9 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
     throw new Error(segmentData.message || "API 1 returned an error")
   }
 
+  const apiTotal: number = segmentData.data?.total ?? 0
   const segments: SegmentItem[] = segmentData.data?.list || []
-  console.log("[v0] API 1 total segments returned:", segments.length)
+  console.log("[v0] API 1 total segments returned:", segments.length, "/ API total:", apiTotal)
 
   // API 2: Get details for each segment
   const detailPromises = segments.map(async (segment) => {
@@ -335,41 +340,34 @@ async function fetchRecords(options: FetchOptions): Promise<DataRow[]> {
     const details: DetailItem[] = detailData.data?.list || []
     console.log("[v0] API 2 segment:", segment.segment_code, "details count:", details.length)
 
-    // Map all detail items with valid JSON answers
-    return details
-      .map((detail, index) => {
-        const parsed = parseAnswer(detail.answer)
+    // Map all detail items — never discard a row even if JSON parsing fails
+    return details.map((detail, index) => {
+      const parsed = parseAnswer(detail.answer) ?? {}
 
-        // Skip rows where answer is not valid JSON
-        if (!parsed) {
-          return null
-        }
+      // Prefer historyDialogue from the parsed answer; fall back to question.
+      const answerDialogue =
+        typeof parsed.historyDialogue === "string"
+          ? decodeDialogue(parsed.historyDialogue)
+          : ""
 
-        // Prefer historyDialogue from the parsed answer; fall back to question.
-        const answerDialogue =
-          typeof parsed.historyDialogue === "string"
-            ? decodeDialogue(parsed.historyDialogue)
-            : ""
+      // Parse the optional recording info from the "audio" field
+      const audioInfo = parseAudioInfo(parsed.audio)
 
-        // Parse the optional recording info from the "audio" field
-        const audioInfo = parseAudioInfo(parsed.audio)
+      const row: DataRow = {
+        id: `${idPrefix}-${segment.segment_code}-${index}`,
+        createTime: detail.create_time || segment.create_time,
+        rawData: parsed,
+        historyDialogue: answerDialogue || parseHistoryDialogue(detail.question),
+        audioUrl: audioInfo?.url,
+        audioFileName: audioInfo?.fileName,
+      }
 
-        const row: DataRow = {
-          id: `${idPrefix}-${segment.segment_code}-${index}`,
-          createTime: detail.create_time,
-          rawData: parsed,
-          historyDialogue: answerDialogue || parseHistoryDialogue(detail.question),
-          audioUrl: audioInfo?.url,
-          audioFileName: audioInfo?.fileName,
-        }
-
-        return row
-      })
-      .filter((row): row is DataRow => row !== null)
+      return row
+    })
   })
 
   const allDetails = await Promise.all(detailPromises)
-  return allDetails.flat()
+  return { rows: allDetails.flat(), apiTotal }
 }
 
 export async function POST(request: NextRequest) {
@@ -386,7 +384,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch records using the user-configured credentials and time range
-    const configuredRecords = await fetchRecords({
+    const { rows: configuredRecords, apiTotal } = await fetchRecords({
       robotKey,
       robotToken,
       username: effectiveUsername,
@@ -397,7 +395,7 @@ export async function POST(request: NextRequest) {
       idPrefix: "config",
     }).catch((err) => {
       console.error("Error fetching configured records:", err)
-      return [] as DataRow[]
+      return { rows: [] as DataRow[], apiTotal: 0 }
     })
 
     // Deduplicate by record content (phone + time + dialogue)
@@ -420,7 +418,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: deduped,
-      total: deduped.length,
+      total: apiTotal,
     })
   } catch (error) {
     console.error("Error fetching data:", error)

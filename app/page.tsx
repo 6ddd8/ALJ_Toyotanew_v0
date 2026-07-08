@@ -24,6 +24,7 @@ export default function DashboardPage() {
   const [lastFetch, setLastFetch] = useState<Date | null>(null)
   const [hasFetched, setHasFetched] = useState(false)
   const [configLoaded, setConfigLoaded] = useState(false)
+  const [apiTotal, setApiTotal] = useState<number>(0)
 
   // Load config from localStorage on mount, but clear if version changed
   useEffect(() => {
@@ -97,6 +98,7 @@ export default function DashboardPage() {
       }
 
       setData(result.data || [])
+      setApiTotal(result.total ?? (result.data?.length ?? 0))
       setLastFetch(new Date())
       setHasFetched(true)
     } catch (err) {
@@ -110,7 +112,7 @@ export default function DashboardPage() {
 
   // Calculate stats based on the new data format
   const stats = useMemo(() => {
-    const total = data.length
+    const total = apiTotal || data.length
     let answeredCalls = 0
     let hotLeads = 0
     let followUpRequired = 0
