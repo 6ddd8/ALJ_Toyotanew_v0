@@ -91,7 +91,6 @@ export function SettingsDialog({ config, onSave }: SettingsDialogProps) {
             <div className="flex items-center gap-2 mb-3">
               <Clock className="h-4 w-4 text-primary" />
               <span className="text-sm font-medium text-foreground">Time Range</span>
-              <span className="text-xs text-muted-foreground">Optional — leave blank to fetch all data</span>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <Field>
