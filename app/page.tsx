@@ -104,32 +104,30 @@ export default function DashboardPage() {
     let hotLeads = 0
     let followUpRequired = 0
 
-    const positiveResponses = ["yes", "y", "نعم"]
-
     data.forEach((row) => {
       const raw = row.rawData as Record<string, unknown>
 
-      // Answered Calls: callAnswered = yes/y
+      // Answered Calls: callAnswered === "Y"
       const callAnswered = typeof raw.callAnswered === "string"
-        ? raw.callAnswered.trim().toLowerCase()
+        ? raw.callAnswered.trim()
         : ""
-      if (positiveResponses.includes(callAnswered)) {
+      if (callAnswered === "Y") {
         answeredCalls++
       }
 
-      // Hot Leads: postCallLeadClassification has a non-empty value
+      // Hot Leads: postCallLeadClassification === "Hot"
       const classification = typeof raw.postCallLeadClassification === "string"
         ? raw.postCallLeadClassification.trim()
         : ""
-      if (classification && classification !== "-") {
+      if (classification === "Hot") {
         hotLeads++
       }
 
-      // Follow-up Required: followUpRequired = yes/y
+      // Follow-up Required: followUpRequired === "Yes"
       const followUp = typeof raw.followUpRequired === "string"
-        ? raw.followUpRequired.trim().toLowerCase()
+        ? raw.followUpRequired.trim()
         : ""
-      if (positiveResponses.includes(followUp)) {
+      if (followUp === "Yes") {
         followUpRequired++
       }
     })
