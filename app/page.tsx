@@ -292,7 +292,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ) : (
-              <DataCards data={data} />
+              <DataCards data={data} apiTotal={apiTotal} />
             )}
           </>
         )}

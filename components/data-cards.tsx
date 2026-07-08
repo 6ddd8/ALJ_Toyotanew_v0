@@ -18,6 +18,7 @@ import type { DataRow } from "@/lib/types"
 
 interface DataCardsProps {
   data: DataRow[]
+  apiTotal?: number
 }
 
 interface AnswerData {
@@ -220,7 +221,7 @@ function SubField({ label, value }: { label: string; value: string }) {
 
 const PAGE_SIZE = 4
 
-export function DataCards({ data }: DataCardsProps) {
+export function DataCards({ data, apiTotal }: DataCardsProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [currentPage, setCurrentPage] = useState(1)
 
@@ -275,7 +276,7 @@ export function DataCards({ data }: DataCardsProps) {
         <div className="text-sm text-muted-foreground">
           Showing <span className="font-medium text-foreground">{filteredData.length}</span>
           {" / "}
-          <span className="font-medium text-foreground">{data.length}</span> records
+          <span className="font-medium text-foreground">{apiTotal ?? data.length}</span> records
         </div>
         {filteredData.length > 0 && (
           <Button variant="outline" size="sm" onClick={handleDownloadAll} className="gap-2">
