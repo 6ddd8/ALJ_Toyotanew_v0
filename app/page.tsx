@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const [error, setError] = useState<string | null>(null)
   const [lastFetch, setLastFetch] = useState<Date | null>(null)
   const [hasFetched, setHasFetched] = useState(false)
+  const [configLoaded, setConfigLoaded] = useState(false)
 
   // Load config from localStorage on mount, but clear if version changed
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function DashboardPage() {
       localStorage.removeItem(STORAGE_KEY)
       localStorage.setItem(CONFIG_VERSION_KEY, CURRENT_CONFIG_VERSION)
       setConfig(DEFAULT_CONFIG)
+      setConfigLoaded(true)
       return
     }
     
@@ -45,7 +47,16 @@ export default function DashboardPage() {
         console.error("Failed to parse stored config")
       }
     }
+    setConfigLoaded(true)
   }, [])
+
+  // Auto-fetch on mount once config is loaded
+  useEffect(() => {
+    if (configLoaded) {
+      fetchData()
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [configLoaded])
 
   // Save config to localStorage
   const handleSaveConfig = (newConfig: ApiConfig) => {
