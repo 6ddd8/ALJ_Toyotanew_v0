@@ -135,6 +135,7 @@ const KNOWN_ANSWER_FIELDS = [
   "postCallLeadClassification",
   "followUpRequired",
   "summaryContent",
+  "paystatus",
   "historyDialogue",
   "audio",
 ]

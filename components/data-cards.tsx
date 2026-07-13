@@ -40,6 +40,7 @@ interface AnswerData {
   postCallLeadClassification: string
   followUpRequired: string
   summaryContent: string
+  paystatus: string
 }
 
 function str(val: unknown): string {
@@ -103,6 +104,7 @@ function extractAnswerData(rawData: Record<string, unknown>): AnswerData {
     postCallLeadClassification: str(raw.postCallLeadClassification),
     followUpRequired: str(raw.followUpRequired),
     summaryContent: str(raw.summaryContent),
+    paystatus: str(raw.paystatus),
   }
 }
 
@@ -161,6 +163,7 @@ function flattenForExcel(row: DataRow): Record<string, string> {
     "Post Call Lead Classification": a.postCallLeadClassification,
     "Follow-up Required": a.followUpRequired,
     "Summary Content": a.summaryContent,
+    "Pay Status": a.paystatus,
   }
 }
 
@@ -433,6 +436,11 @@ export function DataCards({ data, apiTotal }: DataCardsProps) {
                       <Badge variant="outline" className={`w-fit ${getBadgeStyle(a.followUpRequired)}`}>
                         {a.followUpRequired}
                       </Badge>
+                    </FieldRow>
+
+                    {/* Pay Status */}
+                    <FieldRow icon={CreditCard} label="Pay Status">
+                      <span className="text-sm text-foreground">{a.paystatus}</span>
                     </FieldRow>
 
                     {/* Summary Content */}
