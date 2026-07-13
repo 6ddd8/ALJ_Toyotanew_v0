@@ -32,7 +32,6 @@ interface AnswerData {
   gradeSelection: { value: string; note: string }
   colorPreference: { first: string; second: string; third: string }
   purchaseType: { value: string; note: string }
-  budgetIfCash: string
   financialEntityIfFinance: string
   purchaseTimeline: string
   confirmToCreateOrder: string
@@ -40,6 +39,7 @@ interface AnswerData {
   postCallLeadClassification: string
   followUpRequired: string
   summaryContent: string
+  paystatus: string
 }
 
 function str(val: unknown): string {
@@ -95,7 +95,6 @@ function extractAnswerData(rawData: Record<string, unknown>): AnswerData {
     gradeSelection,
     colorPreference,
     purchaseType,
-    budgetIfCash: str(raw.budgetIfCash),
     financialEntityIfFinance: str(raw.financialEntityIfFinance),
     purchaseTimeline: str(raw.purchaseTimeline),
     confirmToCreateOrder: str(raw.confirmToCreateOrder),
@@ -103,6 +102,7 @@ function extractAnswerData(rawData: Record<string, unknown>): AnswerData {
     postCallLeadClassification: str(raw.postCallLeadClassification),
     followUpRequired: str(raw.followUpRequired),
     summaryContent: str(raw.summaryContent),
+    paystatus: str(raw.paystatus),
   }
 }
 
@@ -153,7 +153,6 @@ function flattenForExcel(row: DataRow): Record<string, string> {
     "Color Preference 3rd": a.colorPreference.third,
     "Purchase Type Value": a.purchaseType.value,
     "Purchase Type Note": a.purchaseType.note,
-    "Budget If Cash": a.budgetIfCash,
     "Financial Entity If Finance": a.financialEntityIfFinance,
     "Purchase Timeline": a.purchaseTimeline,
     "Confirm To Create Order": a.confirmToCreateOrder,
@@ -161,6 +160,7 @@ function flattenForExcel(row: DataRow): Record<string, string> {
     "Post Call Lead Classification": a.postCallLeadClassification,
     "Follow-up Required": a.followUpRequired,
     "Summary Content": a.summaryContent,
+    "Pay Status": a.paystatus,
   }
 }
 
@@ -386,11 +386,6 @@ export function DataCards({ data, apiTotal }: DataCardsProps) {
                       <SubField label="Note" value={a.purchaseType.note} />
                     </FieldRow>
 
-                    {/* Budget If Cash */}
-                    <FieldRow icon={CreditCard} label="Budget If Cash">
-                      <span className="text-sm text-foreground">{a.budgetIfCash}</span>
-                    </FieldRow>
-
                     {/* Financial Entity If Finance */}
                     <FieldRow icon={TrendingUp} label="Financial Entity If Finance">
                       <span className="text-sm text-foreground">{a.financialEntityIfFinance}</span>
@@ -433,6 +428,11 @@ export function DataCards({ data, apiTotal }: DataCardsProps) {
                       <Badge variant="outline" className={`w-fit ${getBadgeStyle(a.followUpRequired)}`}>
                         {a.followUpRequired}
                       </Badge>
+                    </FieldRow>
+
+                    {/* Pay Status */}
+                    <FieldRow icon={CreditCard} label="Pay Status">
+                      <span className="text-sm text-foreground">{a.paystatus}</span>
                     </FieldRow>
 
                     {/* Summary Content */}
