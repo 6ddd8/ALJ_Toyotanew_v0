@@ -127,7 +127,6 @@ const KNOWN_ANSWER_FIELDS = [
   "gradeSelection",
   "colorPreference",
   "purchaseType",
-  "budgetIfCash",
   "financialEntityIfFinance",
   "purchaseTimeline",
   "confirmToCreateOrder",

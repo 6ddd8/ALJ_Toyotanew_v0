@@ -32,7 +32,6 @@ interface AnswerData {
   gradeSelection: { value: string; note: string }
   colorPreference: { first: string; second: string; third: string }
   purchaseType: { value: string; note: string }
-  budgetIfCash: string
   financialEntityIfFinance: string
   purchaseTimeline: string
   confirmToCreateOrder: string
@@ -96,7 +95,6 @@ function extractAnswerData(rawData: Record<string, unknown>): AnswerData {
     gradeSelection,
     colorPreference,
     purchaseType,
-    budgetIfCash: str(raw.budgetIfCash),
     financialEntityIfFinance: str(raw.financialEntityIfFinance),
     purchaseTimeline: str(raw.purchaseTimeline),
     confirmToCreateOrder: str(raw.confirmToCreateOrder),
@@ -155,7 +153,6 @@ function flattenForExcel(row: DataRow): Record<string, string> {
     "Color Preference 3rd": a.colorPreference.third,
     "Purchase Type Value": a.purchaseType.value,
     "Purchase Type Note": a.purchaseType.note,
-    "Budget If Cash": a.budgetIfCash,
     "Financial Entity If Finance": a.financialEntityIfFinance,
     "Purchase Timeline": a.purchaseTimeline,
     "Confirm To Create Order": a.confirmToCreateOrder,
