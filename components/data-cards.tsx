@@ -389,11 +389,6 @@ export function DataCards({ data, apiTotal }: DataCardsProps) {
                       <SubField label="Note" value={a.purchaseType.note} />
                     </FieldRow>
 
-                    {/* Budget If Cash */}
-                    <FieldRow icon={CreditCard} label="Budget If Cash">
-                      <span className="text-sm text-foreground">{a.budgetIfCash}</span>
-                    </FieldRow>
-
                     {/* Financial Entity If Finance */}
                     <FieldRow icon={TrendingUp} label="Financial Entity If Finance">
                       <span className="text-sm text-foreground">{a.financialEntityIfFinance}</span>
